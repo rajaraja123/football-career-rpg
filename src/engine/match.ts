@@ -1,4 +1,4 @@
-import { MOMENTS, SHARED, SHOT_FOOT, SHOT_HEAD, SHOT_TEXT, type MChoice, type MStep, type Next, type ShotOption } from '../data/moments';
+import { LATE_MOMENTS, MOMENTS, SHARED, SHOT_ACROBATIC, SHOT_FOOT, SHOT_HEAD, SHOT_TEXT, type MChoice, type MStep, type Next, type ShotOption } from '../data/moments';
 import { log } from './log';
 import { overallOf } from './player';
 import { RNG } from './rng';
@@ -8,6 +8,7 @@ import type { Chance, Club, GameState, MatchState, MomentState, Prompt } from '.
 
 const SHOT_BASE = 87;
 const STEP_BIAS = 4; // makin besar = aksi makin sulit secara umum
+const ALL_TEMPLATES = [...MOMENTS, ...LATE_MOMENTS];
 const BLOCKS = 18; // 18 blok x 5 menit
 
 const heroClub = (g: GameState) => clubOf(g.world, g.hero.clubId);
@@ -193,7 +194,10 @@ export function advanceMatch(g: GameState): void {
 
     const involve = (m.starter ? 0.34 : 0.49) * (1 + (g.hero.form - 50) / 250);
     if (heroHere && rng.chance(involve)) {
-      const id = rng.chance(0.04) && g.hero.role !== 'prospect' && !m.youth ? 'penalty' : pickTemplate(g, rng);
+      let id: string;
+      if (rng.chance(0.04) && g.hero.role !== 'prospect' && !m.youth) id = 'penalty';
+      else if (c.minute >= 85 && !m.youth && Math.abs(m.score.us - m.score.them) <= 1 && rng.chance(0.22)) id = rng.pick(LATE_MOMENTS).id;
+      else id = pickTemplate(g, rng);
       return openMoment(g, m, rng, id, c.minute);
     }
     const conv = clamp(0.1 * Math.exp((m.ratings.usAtk - m.ratings.themDef) / 70), 0.03, 0.3);
@@ -207,8 +211,10 @@ function pickTemplate(g: GameState, rng: RNG): string {
   return rng.weighted(pool, (t) => t.weight * (t.tags?.includes(g.hero.archetype) ? 1.8 : 1)).id;
 }
 
+const findTpl = (id: string) => ALL_TEMPLATES.find((t) => t.id === id)!;
+
 function openMoment(g: GameState, m: MatchState, rng: RNG, templateId: string, minute: number) {
-  const tpl = MOMENTS.find((t) => t.id === templateId)!;
+  const tpl = findTpl(templateId);
   m.moments++;
   m.moment = {
     templateId, stepId: tpl.start, minute,
@@ -221,21 +227,27 @@ function openMoment(g: GameState, m: MatchState, rng: RNG, templateId: string, m
 // ---------- prompt & resolusi momen ----------
 
 function stepOf(mo: MomentState): MStep {
-  const tpl = MOMENTS.find((t) => t.id === mo.templateId)!;
+  const tpl = findTpl(mo.templateId);
   return tpl.steps[mo.stepId] ?? SHARED[mo.stepId];
 }
-const shotOptions = (mo: MomentState): ShotOption[] => (mo.shotKind === 'header' ? SHOT_HEAD : SHOT_FOOT);
+const shotOptions = (mo: MomentState): ShotOption[] =>
+  mo.shotKind === 'header' ? SHOT_HEAD : mo.shotKind === 'acrobatic' ? SHOT_ACROBATIC : SHOT_FOOT;
 
 export function momentPrompt(g: GameState): Prompt {
   const m = g.match!;
   const mo = m.moment!;
   const opp = clubOf(g.world, m.oppId);
-  const tpl = MOMENTS.find((t) => t.id === mo.templateId)!;
+  const tpl = findTpl(mo.templateId);
   if (mo.mode === 'shot') {
+    const shotText = mo.shotKind === 'header'
+      ? `Bola melayang ke kepalamu. ${fill('{gk}', m, mo, opp)} ada di bawah mistar.`
+      : mo.shotKind === 'acrobatic'
+      ? `Bola melayang tinggi, tidak ada waktu mengontrolnya dengan normal. ${fill('{gk}', m, mo, opp)} menunggu di bawah mistar.`
+      : `Gawang terbuka di depanmu, ${fill('{gk}', m, mo, opp)} bersiap. Ke mana kamu mengarahkan bola?`;
     return {
       kind: 'moment',
       title: 'Saatnya menembak!',
-      text: mo.shotKind === 'header' ? `Bola melayang ke kepalamu. ${fill('{gk}', m, mo, opp)} ada di bawah mistar.` : `Gawang terbuka di depanmu, ${fill('{gk}', m, mo, opp)} bersiap. Ke mana kamu mengarahkan bola?`,
+      text: shotText,
       minute: mo.minute,
       choices: shotOptions(mo).map((o) => ({ label: o.label, p: pOf(g, m, o.stat, SHOT_BASE + o.diff + mo.shotMod, mo.minute) })),
     };
@@ -324,6 +336,21 @@ function applyNext(g: GameState, m: MatchState, mo: MomentState, next: Next, rng
     }
     return endMoment(g, m);
   }
+  if ('foul' in next) {
+    m.rating += 0.15;
+    const cardChance = next.foul === 'hard' ? 0.55 : 0.18;
+    if (rng.chance(cardChance)) {
+      const isRed = next.foul === 'hard' && rng.chance(0.2);
+      log(g, isRed ? 'good' : 'story', f(`Wasit mengeluarkan kartu ${isRed ? 'MERAH' : 'kuning'} untuk {def}!${isRed ? ' Lawan harus bermain dengan 10 orang sisa pertandingan.' : ''}`), tag);
+      if (isRed) {
+        m.ratings.themDef = Math.max(30, m.ratings.themDef - 10);
+        m.ratings.themAtk = Math.max(30, m.ratings.themAtk - 6);
+      }
+    } else {
+      log(g, 'story', f('Wasit meniup peluit, pelanggaran untuk timmu. Tendangan bebas.'), tag);
+    }
+    return endMoment(g, m);
+  }
   switch (next.end) {
     case 'goal':
       heroGoal(g, m, mo.minute);
@@ -335,6 +362,12 @@ function applyNext(g: GameState, m: MatchState, mo: MomentState, next: Next, rng
       break;
     case 'lost':
       m.rating -= 0.1;
+      break;
+    case 'win':
+      m.rating += 0.25;
+      break;
+    case 'control':
+      m.rating += 0.1;
       break;
     default:
       break;

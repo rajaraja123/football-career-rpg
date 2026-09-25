@@ -154,7 +154,7 @@ export interface MomentState {
   def: string;
   gk: string;
   shotMod: number;
-  shotKind: 'foot' | 'header';
+  shotKind: 'foot' | 'header' | 'acrobatic';
   mode: 'steps' | 'shot';
   ok: number; // jumlah aksi sukses (untuk rating)
 }

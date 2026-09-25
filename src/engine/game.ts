@@ -63,9 +63,26 @@ export function createGame(o: NewGameOpts): GameState {
   g.world.players.push(rival);
   g.world.rivalId = rival.id;
 
-  log(g, 'story', `Kamu ${hero.name}, 16 tahun, striker muda yang baru diterima di akademi ${club.name}, ${club.city}.`);
-  log(g, 'story', `Pelatih akademi menilaimu sebagai tipe ${arch.label.toLowerCase()}. ${arch.desc}`);
-  log(g, 'story', `Di tribun pemain muda, kamu mendengar nama seseorang yang sering disebut: ${rival.name}, striker muda ${rc.short} yang seumuranmu. Kamu punya firasat kalian akan sering bertemu.`);
+  const introA = rng.pick([
+    `Kamu ${hero.name}, 16 tahun, striker muda yang baru diterima di akademi ${club.name}, ${club.city}.`,
+    `Hari ini resmi jadi bagian dari akademi ${club.name}. Namamu, ${hero.name}, baru saja ditulis di papan pemain U-18.`,
+    `Setelah trial yang melelahkan, ${club.name} akhirnya menerimamu. ${hero.name}, 16 tahun, siap memulai perjalanan di ${club.city}.`,
+    `Bus antar-kota mengantarmu ke ${club.city}. ${hero.name}, 16 tahun, membawa satu tas dan mimpi besar bersama akademi ${club.name}.`,
+  ]);
+  const introB = rng.pick([
+    `Pelatih akademi menilaimu sebagai tipe ${arch.label.toLowerCase()}. ${arch.desc}`,
+    `Setelah menonton beberapa sesi latihanmu, staf kepelatihan mencatat gaya mainmu: ${arch.label}. ${arch.desc}`,
+    `"${arch.label}, ya," gumam pelatih sambil mencoret catatannya. ${arch.desc}`,
+  ]);
+  const introC = rng.pick([
+    `Di tribun pemain muda, kamu mendengar nama seseorang yang sering disebut: ${rival.name}, striker muda ${rc.short} yang seumuranmu. Kamu punya firasat kalian akan sering bertemu.`,
+    `Sambil beres-beres di asrama, teman baru bercerita tentang ${rival.name}, striker muda ${rc.short} yang katanya paling ditakuti di angkatanmu.`,
+    `Kamu melihat cuplikan video ${rival.name} dari ${rc.short} mencetak gol indah di grup media sosial akademi. Nama itu langsung menempel di kepalamu.`,
+    `Seorang senior menepuk pundakmu, "Nanti lawan seumuran paling berat kamu itu ${rival.name} dari ${rc.short}, catat saja."`,
+  ]);
+  log(g, 'story', introA);
+  log(g, 'story', introB);
+  log(g, 'story', introC);
   g.prompt = {
     kind: 'info', title: `Selamat datang di ${club.short}`,
     lines: [

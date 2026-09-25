@@ -61,7 +61,7 @@ export function pickEvent(g: GameState, rng: RNG): EventDef | null {
     const ev = EVENTS.find((e) => e.id === id);
     if (ev) return ev;
   }
-  if (g.t - g.lastEventT < 1 || !rng.chance(0.58)) return null;
+  if (g.t - g.lastEventT < 1 || !rng.chance(0.52)) return null;
   const c = makeCtx(g);
   const pool = EVENTS.filter((e) => eligible(g, e, c));
   if (pool.length === 0) return null;
