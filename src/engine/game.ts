@@ -148,7 +148,18 @@ function stageWeekStart(g: GameState): boolean {
 function doTraining(g: GameState, idx: number) {
   const h = g.hero;
   const has = (f: string) => (h.flags[f] ?? 0) > g.t;
-  if (idx >= ATTR_KEYS.length) {
+  if (idx === ATTR_KEYS.length + 1) {
+    const cost = 25;
+    if (h.money >= cost) {
+      h.money -= cost;
+      h.fitness = clamp(h.fitness + 45, 0, 100);
+      h.morale = clamp(h.morale + 8, 0, 100);
+      log(g, 'sys', `Kamu menyewa fasilitas pemulihan (spa, ahli gizi, fisioterapis) seharga ${money(cost)}. Badan terasa jauh lebih segar.`);
+    } else {
+      h.fitness = clamp(h.fitness + 26, 0, 100);
+      log(g, 'sys', 'Kamu ingin memakai fasilitas pemulihan premium, tapi tabunganmu tidak cukup. Kamu istirahat biasa saja.');
+    }
+  } else if (idx >= ATTR_KEYS.length) {
     h.fitness = clamp(h.fitness + 26, 0, 100);
     h.morale = clamp(h.morale + 2, 0, 100);
     log(g, 'sys', 'Pekan ini kamu memilih memulihkan tenaga: tidur cukup, pijat, dan makan teratur.');
@@ -278,7 +289,8 @@ function stageWeekEnd(g: GameState): boolean {
   // pemulihan & waktu berjalan
   h.fitness = clamp(h.fitness + (h.injuryWeeks > 0 ? 8 : 14), 0, 100);
   h.form += (50 - h.form) * 0.1;
-  h.morale += (55 - h.morale) * 0.05;
+  const moraleSetpoint = 40 + h.rel.fans * 0.3; // makin dicintai suporter, makin gampang moral pulih
+  h.morale += (moraleSetpoint - h.morale) * 0.05;
   if (h.injuryWeeks > 0) {
     h.injuryWeeks--;
     if (h.injuryWeeks === 0) log(g, 'good', 'Kamu dinyatakan pulih dan boleh berlatih penuh lagi.');

@@ -3,7 +3,7 @@ import { act, choose, createGame, heroClub, nextFixture, seasonLabel } from '../
 import { ARCHETYPES, ATTR_KEYS, ATTR_LABEL, effRating, heroValue, overallOf, starsOfPotential } from '../engine/player';
 import { offerLine } from '../engine/transfer';
 import { money } from '../engine/util';
-import { clubLevel, clubOf, sortedTable } from '../engine/world';
+import { clubLevel, clubOf, sortedTable, squadOf, startingXI } from '../engine/world';
 import type { GameState, MomentChoice, Prompt } from '../engine/types';
 import { clearSave, loadGame, saveGame } from '../save/storage';
 
@@ -11,7 +11,7 @@ let root: HTMLElement;
 let g: GameState | null = null;
 let screen: 'menu' | 'new' | 'game' = 'menu';
 let mobileTab: 'story' | 'player' | 'league' = 'story';
-let sideTab: 'tabel' | 'skor' | 'karier' = 'tabel';
+let sideTab: 'tabel' | 'skor' | 'skuad' | 'karier' = 'tabel';
 let renderedLog = 0;
 const form = { name: 'Raja', archetype: 'finisher', clubId: 'mataram' };
 
@@ -172,9 +172,12 @@ function dock(g: GameState): string {
           ? `<button data-a="act" data-v="cancelRequest">Tarik permintaan pindah</button>`
           : `<button data-a="act" data-v="requestTransfer">Minta pindah klub</button>`
         : '';
+      const paid = h.money >= 25
+        ? `<button class="btn" data-a="choose" data-i="7">Fasilitas pemulihan premium<small>€25K · pulih lebih banyak + moral naik</small></button>`
+        : '';
       return `<div class="dock"><h4>Fokus latihan pekan ini</h4>
-        <p>${nf ? `Laga berikutnya: ${nf.home ? 'melawan' : 'tandang ke'} ${esc(nf.opp.name)}.` : ''} Kebugaran ${Math.round(h.fitness)}%.</p>
-        <div class="choices">${btns}<button class="btn" data-a="choose" data-i="6">Istirahat<small>Pulihkan kebugaran</small></button></div>
+        <p>${nf ? `Laga berikutnya: ${nf.home ? 'melawan' : 'tandang ke'} ${esc(nf.opp.name)}.` : ''} Kebugaran ${Math.round(h.fitness)}%. Tabungan ${esc('')}${money(h.money)}.</p>
+        <div class="choices">${btns}<button class="btn" data-a="choose" data-i="6">Istirahat<small>Gratis, pulihkan kebugaran</small></button>${paid}</div>
         <div class="tools">${tools}</div></div>`;
     }
     case 'rehab':
@@ -249,8 +252,25 @@ function sidePanel(g: GameState): string {
   let body = '';
   if (sideTab === 'tabel') body = tablePanel(g);
   else if (sideTab === 'skor') body = scorersPanel(g);
+  else if (sideTab === 'skuad') body = squadPanel(g);
   else body = careerPanel(g);
-  return `<div class="tabs">${t('tabel', 'Tabel')}${t('skor', 'Top skor')}${t('karier', 'Karier')}</div><div class="board">${body}</div>`;
+  return `<div class="tabs">${t('tabel', 'Tabel')}${t('skor', 'Top skor')}${t('skuad', 'Skuad')}${t('karier', 'Karier')}</div><div class="board">${body}</div>`;
+}
+
+function squadPanel(g: GameState): string {
+  const club = clubOf(g.world, g.hero.clubId);
+  const xi = startingXI(g, club.id, { name: g.hero.name, overall: overallOf(g.hero.attrs) });
+  const group = (label: string, list: { name: string; overall: number }[], heroPos?: boolean) =>
+    `<div class="sect" style="margin-top:10px;padding-top:8px"><h3>${label}</h3>${list
+      .map((p) => `<div class="kv"><span>${esc(p.name)}${heroPos && p.name === g.hero.name ? ' (kamu)' : ''}</span><b>${p.overall}</b></div>`)
+      .join('')}</div>`;
+  const bench = squadOf(g.world, club.id)
+    .filter((p) => ![...xi.gk, ...xi.df, ...xi.mf, ...xi.fw].some((x) => x.name === p.name))
+    .sort((a, b) => b.overall - a.overall);
+  return `<div class="sect" style="margin:0;padding:0;border:0"><h3>Susunan utama ${esc(club.short)} (${xi.formation})</h3></div>
+    ${group('Kiper', xi.gk)}${group('Belakang', xi.df)}${group('Tengah', xi.mf)}${group('Depan', xi.fw, true)}
+    <div class="sect"><h3>Bangku cadangan</h3>${bench.slice(0, 8).map((p) => `<div class="kv"><span>${esc(p.name)} <span style="color:#9fb0cf">(${p.pos})</span></span><b>${p.overall}</b></div>`).join('')}</div>
+    <div class="note">Angka di kanan = overall pemain. Susunan dihitung ulang tiap kali dibuka berdasar kondisi skuad saat ini.</div>`;
 }
 
 function tablePanel(g: GameState): string {

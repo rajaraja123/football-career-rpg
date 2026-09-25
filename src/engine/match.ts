@@ -3,10 +3,10 @@ import { log } from './log';
 import { overallOf } from './player';
 import { RNG } from './rng';
 import { clamp, r1, sigmoid } from './util';
-import { applyResult, clubOf, squadOf, teamRatings } from './world';
+import { applyResult, clubOf, squadOf, startingXI, teamRatings } from './world';
 import type { Chance, Club, GameState, MatchState, MomentState, Prompt } from './types';
 
-const SHOT_BASE = 82;
+const SHOT_BASE = 87;
 const STEP_BIAS = 4; // makin besar = aksi makin sulit secara umum
 const BLOCKS = 18; // 18 blok x 5 menit
 
@@ -68,17 +68,30 @@ export function startMatch(g: GameState, oppId: string, home: boolean, starter: 
     injuryWeeks = r < 0.55 ? rng.int(1, 2) : r < 0.85 ? rng.int(3, 6) : r < 0.98 ? rng.int(8, 16) : rng.int(28, 40);
   }
 
+  const lineupUs = youth
+    ? []
+    : (() => {
+        const xi = starter ? startingXI(g, us.id, { name: g.hero.name, overall: heroOvr }) : startingXI(g, us.id);
+        return [...xi.gk, ...xi.df, ...xi.mf, ...xi.fw];
+      })();
+  const lineupThem = youth ? [] : (() => { const xi = startingXI(g, opp.id); return [...xi.gk, ...xi.df, ...xi.mf, ...xi.fw]; })();
+
   const m: MatchState = {
     oppId, home, youth, block: 0, queue: [], score: { us: 0, them: 0 },
     from, to, starter, injured, injuryWeeks,
     ratings: { usAtk: usR.atk + (home ? 2.5 : -2.5), usDef: usR.def, themAtk: themR.atk + (home ? -2.5 : 2.5), themDef: themR.def },
-    mates, oppAtk, oppDef, oppGK,
+    mates, oppAtk, oppDef, oppGK, lineupUs, lineupThem,
     goals: 0, assists: 0, shots: 0, moments: 0, rating: 6.0, moment: null, done: false,
   };
   g.match = m;
 
   const comp = youth ? ' (U-18)' : '';
   log(g, 'match', `${us.short} ${home ? 'vs' : '@'} ${opp.short}${comp}. ${home ? 'Kandang.' : 'Tandang.'}`, 'Kick-off');
+  if (!youth) {
+    const nm = (l: typeof lineupUs) => l.map((p) => p.name).join(', ');
+    log(g, 'sys', `Susunan ${us.short} (${startingXI(g, us.id).formation}): ${nm(lineupUs)}.`);
+    log(g, 'sys', `Susunan ${opp.short} (${startingXI(g, opp.id).formation}): ${nm(lineupThem)}.`);
+  }
   if (starter) log(g, 'story', `Namamu ada di susunan pemain utama. Kamu berjalan ke lapangan bersama ${m.mates[0]} dan ${m.mates[1]}.`);
   else log(g, 'story', `Kamu duduk di bangku cadangan, memanaskan badan di pinggir lapangan.`);
 }
@@ -178,7 +191,7 @@ export function advanceMatch(g: GameState): void {
       continue;
     }
 
-    const involve = (m.starter ? 0.26 : 0.45) * (1 + (g.hero.form - 50) / 250);
+    const involve = (m.starter ? 0.34 : 0.49) * (1 + (g.hero.form - 50) / 250);
     if (heroHere && rng.chance(involve)) {
       const id = rng.chance(0.04) && g.hero.role !== 'prospect' && !m.youth ? 'penalty' : pickTemplate(g, rng);
       return openMoment(g, m, rng, id, c.minute);
@@ -299,7 +312,7 @@ function applyNext(g: GameState, m: MatchState, mo: MomentState, next: Next, rng
     return;
   }
   if ('assist' in next) {
-    const p = clamp(next.assist * Math.exp(-(m.ratings.themDef - 58) / 60), 0.05, 0.75);
+    const p = clamp(next.assist * Math.exp(-(m.ratings.themDef - 58) / 60) + (g.hero.rel.team - 50) * 0.0015, 0.05, 0.8);
     if (rng.chance(p)) {
       m.assists++;
       m.rating += 0.7;

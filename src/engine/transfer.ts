@@ -15,7 +15,8 @@ function salaryFor(g: GameState, clubId: string, mode: OfferMode, role: Role): n
   const h = g.hero;
   const club = clubOf(g.world, clubId);
   if (mode === 'academy' || mode === 'promo') return Math.max(0.6, +(heroValue(h) * 0.009 * (0.8 + club.reputation / 100)).toFixed(1));
-  const base = heroValue(h) * 0.012 * (0.75 + club.reputation / 100);
+  const agentBonus = 1 + (h.rel.agent - 50) * 0.0025; // agen yang loyal menegosiasikan gaji lebih baik
+  const base = heroValue(h) * 0.012 * (0.75 + club.reputation / 100) * agentBonus;
   const roleMult = role === 'starter' ? 1.1 : role === 'rotation' ? 1 : 0.85;
   return Math.max(1, +(base * roleMult).toFixed(1));
 }

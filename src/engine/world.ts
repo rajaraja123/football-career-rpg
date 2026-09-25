@@ -79,6 +79,24 @@ export function createWorld(g: GameState): World {
 export const clubOf = (w: World, id: string) => w.clubs.find((c) => c.id === id)!;
 export const squadOf = (w: World, clubId: string) => w.players.filter((p) => p.clubId === clubId);
 
+/** Susunan 11 pemain terbaik klub berdasar formasi (jumlah striker). */
+export function startingXI(g: GameState, clubId: string, heroIn?: { name: string; overall: number }) {
+  const sq = squadOf(g.world, clubId);
+  const by = (pos: Position) => sq.filter((p) => p.pos === pos).sort((a, b) => b.overall - a.overall);
+  const club = clubOf(g.world, clubId);
+  const nFw = club.formation; // 1 atau 2
+  const nMf = club.formation === 2 ? 4 : 5;
+  const gk = by('GK').slice(0, 1).map((p) => ({ name: p.name, pos: p.pos, overall: p.overall }));
+  const df = by('DF').slice(0, 4).map((p) => ({ name: p.name, pos: p.pos, overall: p.overall }));
+  const mf = by('MF').slice(0, nMf).map((p) => ({ name: p.name, pos: p.pos, overall: p.overall }));
+  let fw = by('FW').slice(0, nFw).map((p) => ({ name: p.name, pos: p.pos, overall: p.overall }));
+  if (heroIn) {
+    fw = fw.slice(0, Math.max(0, nFw - 1));
+    fw.push({ name: heroIn.name, pos: 'FW', overall: heroIn.overall });
+  }
+  return { gk, df, mf, fw, formation: `${df.length}-${mf.length}-${fw.length}` };
+}
+
 const avg = (a: number[]) => (a.length ? a.reduce((s, v) => s + v, 0) / a.length : 40);
 const top = (a: number[], n: number) => [...a].sort((x, y) => y - x).slice(0, n);
 

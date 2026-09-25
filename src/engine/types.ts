@@ -182,6 +182,8 @@ export interface MatchState {
   oppAtk: string[];
   oppDef: string[];
   oppGK: string;
+  lineupUs: { name: string; pos: Position }[];
+  lineupThem: { name: string; pos: Position }[];
   goals: number;
   assists: number;
   shots: number;
