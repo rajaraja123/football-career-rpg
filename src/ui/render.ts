@@ -3,7 +3,7 @@ import { act, choose, createGame, heroClub, nextFixture, seasonLabel } from '../
 import { ARCHETYPES, ATTR_KEYS, ATTR_LABEL, effRating, heroValue, overallOf, starsOfPotential } from '../engine/player';
 import { offerLine } from '../engine/transfer';
 import { money } from '../engine/util';
-import { clubLevel, clubOf, sortedTable, squadOf, startingXI } from '../engine/world';
+import { clubLevel, clubOf, fixturesFor, sortedTable, squadOf, startingXI } from '../engine/world';
 import type { GameState, MomentChoice, Prompt } from '../engine/types';
 import { clearSave, loadGame, saveGame } from '../save/storage';
 
@@ -11,7 +11,7 @@ let root: HTMLElement;
 let g: GameState | null = null;
 let screen: 'menu' | 'new' | 'game' = 'menu';
 let mobileTab: 'story' | 'player' | 'league' = 'story';
-let sideTab: 'tabel' | 'skor' | 'skuad' | 'karier' = 'tabel';
+let sideTab: 'tabel' | 'skor' | 'skuad' | 'jadwal' | 'karier' = 'tabel';
 let renderedLog = 0;
 const form = { name: 'Raja', archetype: 'finisher', clubId: 'mataram' };
 
@@ -253,8 +253,24 @@ function sidePanel(g: GameState): string {
   if (sideTab === 'tabel') body = tablePanel(g);
   else if (sideTab === 'skor') body = scorersPanel(g);
   else if (sideTab === 'skuad') body = squadPanel(g);
+  else if (sideTab === 'jadwal') body = fixturePanel(g);
   else body = careerPanel(g);
-  return `<div class="tabs">${t('tabel', 'Tabel')}${t('skor', 'Top skor')}${t('skuad', 'Skuad')}${t('karier', 'Karier')}</div><div class="board">${body}</div>`;
+  return `<div class="tabs">${t('tabel', 'Tabel')}${t('skor', 'Top skor')}${t('skuad', 'Skuad')}${t('jadwal', 'Jadwal')}${t('karier', 'Karier')}</div><div class="board">${body}</div>`;
+}
+
+function fixturePanel(g: GameState): string {
+  const fx = fixturesFor(g, g.hero.clubId);
+  const label = g.hero.status === 'academy' ? 'Liga U-18' : g.world.leagueName;
+  const rows = fx
+    .map((f) => {
+      const clsAttr = f.week === g.week ? ' class="me"' : '';
+      const lbl = f.home ? `vs ${f.opp.short}` : `@ ${f.opp.short}`;
+      return `<tr${clsAttr} ${f.week < g.week ? 'style="opacity:.55"' : ''}><td>${f.week}</td><td>${esc(lbl)}</td></tr>`;
+    })
+    .join('');
+  return `<div class="sect" style="margin:0;padding:0;border:0"><h3>Jadwal ${label} · ${seasonLabel(g)}</h3>
+    <table><tr><th>Pekan</th><th>Lawan</th></tr>${rows}</table>
+    <div class="note">Baris kuning = pekan sekarang. Baris pudar = sudah dimainkan.</div></div>`;
 }
 
 function squadPanel(g: GameState): string {

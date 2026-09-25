@@ -79,6 +79,15 @@ export function createWorld(g: GameState): World {
 export const clubOf = (w: World, id: string) => w.clubs.find((c) => c.id === id)!;
 export const squadOf = (w: World, clubId: string) => w.players.filter((p) => p.clubId === clubId);
 
+/** Jadwal satu klub untuk seluruh musim: pekan, lawan, kandang/tandang. */
+export function fixturesFor(g: GameState, clubId: string) {
+  return g.world.schedule.map((fx, i) => {
+    const f = fx.find((m) => m.includes(clubId))!;
+    const home = f[0] === clubId;
+    return { week: i + 1, home, opp: clubOf(g.world, home ? f[1] : f[0]) };
+  });
+}
+
 /** Susunan 11 pemain terbaik klub berdasar formasi (jumlah striker). */
 export function startingXI(g: GameState, clubId: string, heroIn?: { name: string; overall: number }) {
   const sq = squadOf(g.world, clubId);

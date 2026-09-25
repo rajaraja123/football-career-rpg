@@ -61,6 +61,58 @@ const academy = (c: Ctx) => c.h.status === 'academy';
 export const EVENTS: EventDef[] = [
   // ---------- AKADEMI ----------
   {
+    id: 'hari_pertama', title: 'Hari pertama di akademi', weight: 20, once: true, cond: (c) => academy(c) && c.h.age <= 16,
+    text: (c) => `Kamu berdiri di depan gerbang akademi ${c.club.name} sambil menenteng tas ransel. Pemain-pemain lain saling melirik, menilai siapa saingan baru mereka.`,
+    choices: [
+      { label: 'Sapa semua orang dengan percaya diri', outcomes: [{ p: 0.6, text: 'Beberapa anak membalas ramah. Kamu langsung dapat beberapa teman baru.', fx: { rel: { team: 6 }, morale: 4 } }, { p: 0.4, text: 'Sikapmu dianggap sok kenal oleh sebagian anak.', fx: { rel: { team: -2 }, morale: 1 } }] },
+      { label: 'Diam dan amati situasi dulu', outcomes: [{ text: 'Kamu memilih aman. Beberapa anak penasaran tapi tak mendekat.', fx: { attr: { mental: 0.3 } } }] },
+      { label: 'Langsung minta main tanding kecil', outcomes: [{ p: 0.5, text: 'Kamu tampil bagus di tanding kecil itu. Semua orang memperhatikanmu.', fx: { fame: 1, rel: { team: 4 }, morale: 5 } }, { p: 0.5, text: 'Kamu terlalu bersemangat dan malah kelihatan kaku.', fx: { morale: -2 } }] },
+    ],
+  },
+  {
+    id: 'teman_sekamar', title: 'Teman sekamar baru', weight: 12, once: true, cond: (c) => academy(c) && c.h.age <= 17,
+    text: 'Kamu ditempatkan sekamar dengan pemain lain di asrama. Dia sedang menata barang-barangnya sambil memutar musik keras.',
+    choices: [
+      { label: 'Ajak ngobrol dan kenalan', outcomes: [{ text: 'Ternyata dia asyik. Kalian langsung akrab dan sering belajar bareng.', fx: { rel: { team: 8 }, morale: 5 } }] },
+      { label: 'Minta dia mengecilkan volume musik', outcomes: [{ p: 0.5, text: 'Dia minta maaf dan langsung mengecilkan volumenya. Situasi tetap nyaman.', fx: { morale: 2 } }, { p: 0.5, text: 'Dia agak tersinggung. Beberapa hari suasana kamar terasa canggung.', fx: { rel: { team: -3 }, morale: -2 } }] },
+      { label: 'Diam saja, pakai headphone', outcomes: [{ text: 'Kamu memilih tidak ambil pusing dan fokus istirahat.', fx: { attr: { mental: 0.3 } } }] },
+    ],
+  },
+  {
+    id: 'uang_saku', title: 'Uang saku pertama', weight: 10, once: true, cond: (c) => academy(c) && c.h.age === 16,
+    text: 'Pengurus akademi memberimu uang saku bulanan pertama, jumlahnya tidak banyak tapi ini uang hasil kerja kerasmu sendiri.',
+    choices: [
+      { label: 'Simpan semuanya', outcomes: [{ text: 'Kamu menabung dengan disiplin sejak awal.', fx: { money: 3, morale: 2 } }] },
+      { label: 'Traktir teman sekamar makan', outcomes: [{ text: 'Kalian makan bareng sambil ngobrol panjang. Momen sederhana yang berkesan.', fx: { money: -1, rel: { team: 5 }, morale: 4 } }] },
+      { label: 'Kirim sebagian ke orang tua', outcomes: [{ text: 'Jumlahnya kecil, tapi ibumu menelepon dan bilang terharu.', fx: { money: -1, morale: 6 } }] },
+    ],
+  },
+  {
+    id: 'nonton_tim_senior', title: 'Menonton tim senior berlatih', weight: 10, once: true, cond: (c) => academy(c) && c.h.age <= 17,
+    text: (c) => `Dari pinggir lapangan, kamu diam-diam menonton sesi latihan tim senior ${c.club.short}. Intensitas dan kecepatan mereka jauh berbeda dari lapangan U-18.`,
+    choices: [
+      { label: 'Perhatikan gerakan striker senior baik-baik', outcomes: [{ text: 'Kamu mencatat detail kecil pergerakan tanpa bola yang belum pernah kamu sadari.', fx: { attr: { mental: 0.6 }, morale: 3 } }] },
+      { label: 'Membayangkan dirimu ada di sana', outcomes: [{ text: 'Bayangan itu membakar semangatmu untuk berlatih lebih keras.', fx: { morale: 6, fitness: -2 } }] },
+    ],
+  },
+  {
+    id: 'kangen_masakan', title: 'Kangen masakan rumah', weight: 8, cooldown: 30, cond: (c) => academy(c),
+    text: 'Menu kantin akademi hari ini terasa hambar. Kamu jadi kepikiran masakan rumah yang biasa kamu makan tiap hari.',
+    choices: [
+      { label: 'Coba masak sendiri di dapur asrama', outcomes: [{ p: 0.5, text: 'Hasilnya lumayan! Teman-teman malah ikut minta dibuatkan.', fx: { morale: 6, rel: { team: 3 } } }, { p: 0.5, text: 'Masakanmu gosong. Kalian tertawa bersama menertawakan hasilnya.', fx: { morale: 3, rel: { team: 2 } } }] },
+      { label: 'Telepon ibu minta resepnya', outcomes: [{ text: 'Ibumu menjelaskan resep sambil bercerita kabar dari rumah. Kamu jadi rindu tapi juga lega.', fx: { morale: 5 } }] },
+      { label: 'Tahan saja, ini bagian dari perjuangan', outcomes: [{ text: 'Kamu mengingatkan diri sendiri kenapa kamu ada di sini.', fx: { attr: { mental: 0.4 } } }] },
+    ],
+  },
+  {
+    id: 'jam_malam', title: 'Godaan jam malam', weight: 8, cooldown: 20, cond: (c) => academy(c) && c.h.age >= 16,
+    text: 'Beberapa senior akademi mengajakmu keluar diam-diam setelah jam malam untuk jajan di luar. Penjaga asrama biasanya tidur jam segini.',
+    choices: [
+      { label: 'Ikut, sekali-sekali saja', outcomes: [{ p: 0.7, text: 'Kalian berhasil kembali sebelum ketahuan. Malam yang seru dan mempererat pertemanan.', fx: { rel: { team: 5 }, morale: 4, fitness: -3 } }, { p: 0.3, text: 'Penjaga asrama memergoki kalian. Kamu kena teguran dari pelatih.', fx: { rel: { manager: -5 }, morale: -3 } }] },
+      { label: 'Menolak, ikuti aturan', outcomes: [{ text: 'Kamu tetap di kamar. Sebagian menganggapmu terlalu kaku, tapi kamu tenang.', fx: { attr: { mental: 0.3 }, rel: { manager: 1 } } }] },
+    ],
+  },
+  {
     id: 'asrama_rindu', title: 'Rindu rumah', weight: 10, once: true, cond: (c) => academy(c) && c.h.age <= 16,
     text: (c) => `Malam pertama di asrama ${c.club.short}. Kamu menatap langit-langit dan teringat rumah, masakan ibu, dan teman-teman lamamu.`,
     choices: [
