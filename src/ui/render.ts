@@ -4,7 +4,7 @@ import { ARCHETYPES, ATTR_KEYS, ATTR_LABEL, effRating, heroValue, overallOf, sta
 import { offerLine } from '../engine/transfer';
 import { money } from '../engine/util';
 import { clubLevel, clubOf, fixturesFor, sortedTable, squadOf, startingXI } from '../engine/world';
-import type { GameState, MomentChoice, Prompt } from '../engine/types';
+import type { GameState, LogEntry, MomentChoice, Prompt } from '../engine/types';
 import { clearSave, loadGame, saveGame } from '../save/storage';
 
 let root: HTMLElement;
@@ -73,11 +73,59 @@ function render() {
   if (screen === 'menu') root.innerHTML = header(false) + menuView();
   else if (screen === 'new') root.innerHTML = header(false) + newView();
   else if (g) {
-    root.innerHTML = header(true) + gameView(g) + nav();
-    const feed = root.querySelector('.feed');
-    if (feed) feed.scrollTop = feed.scrollHeight;
-    renderedLog = g.log.length;
+    if (root.querySelector('.main .feed')) patchGame(g);
+    else buildGame(g);
   }
+}
+
+let lastEntry: LogEntry | null = null;
+
+/** Bangun kerangka layar game (hanya saat pertama masuk). */
+function buildGame(g: GameState) {
+  root.innerHTML = header(true) + gameView(g) + nav();
+  const feedEl = root.querySelector<HTMLElement>('.feed');
+  if (feedEl) jumpToBottom(feedEl);
+  renderedLog = g.log.length;
+  lastEntry = g.log[g.log.length - 1] ?? null;
+}
+
+/** Update layar game tanpa menghancurkan feed, supaya scroll tetap seperti chat. */
+function patchGame(g: GameState) {
+  const swap = (sel: string, html: string) => {
+    const el = root.querySelector(sel);
+    if (el) el.outerHTML = html;
+  };
+  swap('.top', header(true));
+  swap('.nav', nav());
+  swap('.dock', dock(g));
+  const left = root.querySelector('.left-pane');
+  if (left) left.innerHTML = playerPanel(g);
+  const right = root.querySelector('.right-pane');
+  if (right) right.innerHTML = sidePanel(g);
+
+  const feedEl = root.querySelector<HTMLElement>('.feed');
+  if (!feedEl) return;
+  const idx = lastEntry ? g.log.lastIndexOf(lastEntry) : -1;
+  if (lastEntry && idx === -1) {
+    // entri lama sudah terpotong dari log: bangun ulang feed, tanpa animasi scroll
+    feedEl.innerHTML = feedItems(g, 0);
+    jumpToBottom(feedEl);
+  } else {
+    const fresh = g.log.slice(idx + 1);
+    if (fresh.length) {
+      feedEl.insertAdjacentHTML('beforeend', fresh.map((e) => entryHtml(e, true)).join(''));
+      while (feedEl.childElementCount > 200) feedEl.firstElementChild?.remove();
+      feedEl.scrollTo({ top: feedEl.scrollHeight, behavior: 'smooth' });
+    }
+  }
+  renderedLog = g.log.length;
+  lastEntry = g.log[g.log.length - 1] ?? null;
+}
+
+function jumpToBottom(el: HTMLElement) {
+  el.style.scrollBehavior = 'auto';
+  el.scrollTop = el.scrollHeight;
+  el.style.scrollBehavior = '';
 }
 
 function header(inGame: boolean): string {
@@ -139,13 +187,17 @@ function gameView(g: GameState): string {
   </div>`;
 }
 
-function feed(g: GameState): string {
+function entryHtml(e: LogEntry, fresh: boolean): string {
+  return `<div class="entry ${e.k}${fresh ? ' fresh' : ''}"><span class="tag">${e.k === 'week' ? '' : esc(e.tag ?? '')}</span><span>${esc(e.text)}${e.k === 'week' && e.tag ? `<span class="tag">${esc(e.tag)}</span>` : ''}</span></div>`;
+}
+
+function feedItems(g: GameState, freshFrom: number): string {
   const start = Math.max(0, g.log.length - 140);
-  const items = g.log.slice(start).map((e, i) => {
-    const fresh = start + i >= renderedLog ? ' fresh' : '';
-    return `<div class="entry ${e.k}${fresh}"><span class="tag">${e.k === 'week' ? '' : esc(e.tag ?? '')}</span><span>${esc(e.text)}${e.k === 'week' && e.tag ? `<span class="tag">${esc(e.tag)}</span>` : ''}</span></div>`;
-  });
-  return `<div class="feed">${items.join('')}</div>`;
+  return g.log.slice(start).map((e, i) => entryHtml(e, start + i >= freshFrom)).join('');
+}
+
+function feed(g: GameState): string {
+  return `<div class="feed">${feedItems(g, renderedLog)}</div>`;
 }
 
 // ---------------- dock (prompt) ----------------
