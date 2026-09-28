@@ -46,7 +46,7 @@ for (let i = 0; i < N; i++) {
   while (g.prompt.kind !== 'end' && guard++ < 60000) {
     const before = g.seasonNo;
     // catat statistik musim sebelum berganti musim
-    if (g.stage === 'offseason' && g.osStep === 0 && g.prompt.kind === 'info' && g.hero.seasonsLog.length > lastSeason) {
+    if (g.stage === 'offseason' && g.osStep <= 0 && g.prompt.kind === 'info' && g.hero.seasonsLog.length > lastSeason) {
       const r = g.hero.seasonsLog[g.hero.seasonsLog.length - 1];
       lastSeason = g.hero.seasonsLog.length;
       const row = (byAge[r.age] ??= { age: r.age, n: 0, ovr: 0, apps: 0, goals: 0, assists: 0, rating: 0, pot: 0 });

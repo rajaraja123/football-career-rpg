@@ -1,5 +1,6 @@
 import { ARCHETYPES, ATTR_KEYS, ATTR_LABEL, ageProgress, effRating, overallOf, trainingGain } from './player';
 import { applyFx, openEvent, pickEvent, resolveEvent } from './events';
+import { EVENTS } from '../data/events';
 import { advanceMatch, finishMatch, resolveMoment, startMatch } from './match';
 import { acceptOffer, makeOffers, offerLine, type OfferMode } from './transfer';
 import { log } from './log';
@@ -101,7 +102,10 @@ export function choose(g: GameState, idx: number): void {
   switch (p.kind) {
     case 'training': doTraining(g, idx); break;
     case 'rehab': doRehab(g, idx); break;
-    case 'event': resolveEvent(g, idx); g.stage = 'preMatch'; break;
+    case 'event':
+      resolveEvent(g, idx);
+      if (g.stage === 'weekEvent') g.stage = 'preMatch'; // evaluasi akhir musim tetap di tahap offseason
+      break;
     case 'moment':
       resolveMoment(g, idx);
       if (g.match && g.match.moment) return; // masih di momen yang sama (langkah berikutnya)
@@ -410,14 +414,35 @@ function stageSeasonEnd(g: GameState): boolean {
   g.history.push({ season: g.seasonNo, champion: champ.short, topScorer: topName });
   g.prompt = info(`Akhir musim ${label}`, lines, 'Lanjut ke masa liburan');
   g.stage = 'offseason';
-  g.osStep = 0;
+  g.osStep = -1; // -1 = evaluasi pelatih dulu, baru pergantian musim
   return true;
+}
+
+/** Pilih jenis evaluasi pelatih berdasarkan performa musim ini. */
+function evalEventId(g: GameState): string {
+  const h = g.hero;
+  const s = h.season;
+  if (s.apps < 6) return 'evaluasi_jarang';
+  const youth = h.status === 'academy';
+  const pos = sortedTable(g.world).findIndex((r) => r.clubId === h.clubId) + 1;
+  const expected = [...g.world.clubs].sort((a, b) => b.reputation - a.reputation).findIndex((c) => c.id === h.clubId) + 1;
+  const score = (s.ratingSum / s.apps - 6.6) * 2 + (s.goals / s.apps - (youth ? 0.35 : 0.3)) * 3 + (expected - pos) * 0.04 + (h.rel.manager - 50) * 0.01;
+  return score >= 0.9 ? 'evaluasi_bagus' : score <= -0.5 ? 'evaluasi_buruk' : 'evaluasi_biasa';
 }
 
 function stageOffseason(g: GameState): boolean {
   const rng = new RNG(g);
   const h = g.hero;
   switch (g.osStep) {
+    case -1: {
+      g.osStep = 0;
+      const ev = EVENTS.find((e) => e.id === evalEventId(g));
+      if (ev) {
+        openEvent(g, ev);
+        return true;
+      }
+      return false;
+    }
     case 0: {
       h.age++;
       const before = overallOf(h.attrs);

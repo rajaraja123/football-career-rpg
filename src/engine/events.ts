@@ -39,6 +39,16 @@ export function applyFx(g: GameState, fx: Effects): void {
     clubOf(g.world, h.clubId).manager = newManager(rng);
     h.rel.manager = 50;
   }
+  if (fx.special === 'roleUp' && h.status === 'senior') {
+    const up = { prospect: 'rotation', rotation: 'starter', starter: 'starter' } as const;
+    if (h.role !== 'starter') log(g, 'good', `Peranmu naik: sekarang berstatus ${up[h.role] === 'starter' ? 'pemain inti' : 'pemain rotasi'}.`);
+    h.role = up[h.role];
+  }
+  if (fx.special === 'roleDown' && h.status === 'senior') {
+    const down = { starter: 'rotation', rotation: 'prospect', prospect: 'prospect' } as const;
+    if (h.role !== 'prospect') log(g, 'bad', `Peranmu turun: sekarang berstatus ${down[h.role] === 'rotation' ? 'pemain rotasi' : 'prospek'}.`);
+    h.role = down[h.role];
+  }
   if (fx.special === 'cap') {
     h.caps++;
     if (rng.chance(0.4)) h.capGoals++;
@@ -61,7 +71,7 @@ export function pickEvent(g: GameState, rng: RNG): EventDef | null {
     const ev = EVENTS.find((e) => e.id === id);
     if (ev) return ev;
   }
-  if (g.t - g.lastEventT < 1 || !rng.chance(0.52)) return null;
+  if (g.t - g.lastEventT < 1 || !rng.chance(0.58)) return null;
   const c = makeCtx(g);
   const pool = EVENTS.filter((e) => eligible(g, e, c));
   if (pool.length === 0) return null;

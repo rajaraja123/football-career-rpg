@@ -23,7 +23,7 @@ export interface Effects {
   schedule?: { id: string; weeks: number }[];
   transferRequest?: boolean;
   contract?: { years: number; salaryMult: number };
-  special?: 'newManager' | 'cap';
+  special?: 'newManager' | 'cap' | 'roleUp' | 'roleDown';
 }
 export interface Outcome {
   p?: number;
@@ -55,10 +55,54 @@ export interface EventDef {
   choices: EventChoice[];
 }
 
+
+const coach = (c: Ctx) => (c.h.status === 'academy' ? 'Pelatih akademi' : c.club.manager.name);
+const evalStats = (c: Ctx) => {
+  const s = c.h.season;
+  return `${s.apps} laga, ${s.goals} gol, ${s.assists} assist, rating ${s.apps ? (s.ratingSum / s.apps).toFixed(1) : '-'}.`;
+};
+
 const senior = (c: Ctx) => c.h.status === 'senior';
 const academy = (c: Ctx) => c.h.status === 'academy';
 
 export const EVENTS: EventDef[] = [
+  // ---------- EVALUASI AKHIR MUSIM (dipicu game.ts, bukan acak) ----------
+  {
+    id: 'evaluasi_bagus', title: 'Evaluasi akhir musim', weight: 0, chainOnly: true,
+    text: (c) => `${coach(c)} memanggilmu ke ruangannya sambil membawa map berisi catatan musim. "${evalStats(c)} Musim yang sangat baik. Bagaimana perasaanmu?"`,
+    choices: [
+      { label: 'Terima pujian dengan rendah hati', outcomes: [{ p: 0.55, text: 'Pelatih tersenyum. "Sikap seperti ini yang saya cari. Musim depan kamu saya percaya lebih besar."', fx: { rel: { manager: 6 }, morale: 6, special: 'roleUp' } }, { p: 0.45, text: 'Pelatih menepuk bahumu. "Pertahankan, jangan cepat puas."', fx: { rel: { manager: 5 }, morale: 5 } }] },
+      { label: 'Minta peran lebih besar dan gaji naik', outcomes: [{ p: 0.5, text: 'Pelatih berpikir sejenak lalu mengangguk. "Kamu layak. Saya bicarakan dengan direksi."', fx: { special: 'roleUp', rel: { manager: 2 }, morale: 5, money: 30 } }, { p: 0.5, text: '"Bagus, tapi jangan terburu-buru. Buktikan lagi dulu musim depan."', fx: { rel: { manager: -2 }, morale: -1 } }] },
+      { label: 'Bilang ingin tantangan di klub yang lebih besar', outcomes: [{ text: 'Pelatih terdiam lalu mengangguk pelan. "Saya tidak akan menghalangimu, tapi saya kecewa mendengarnya."', fx: { transferRequest: true, rel: { manager: -4 }, fame: 1 } }] },
+    ],
+  },
+  {
+    id: 'evaluasi_biasa', title: 'Evaluasi akhir musim', weight: 0, chainOnly: true,
+    text: (c) => `${coach(c)} mengajakmu duduk setelah sesi terakhir. "${evalStats(c)} Tidak buruk, tapi saya tahu kamu bisa lebih."`,
+    choices: [
+      { label: 'Janji berlatih lebih keras', outcomes: [{ text: 'Pelatih mengangguk. "Saya pegang kata-katamu."', fx: { rel: { manager: 3 }, attr: { mental: 0.4 }, morale: 1 } }] },
+      { label: 'Tanya apa yang harus diperbaiki', outcomes: [{ text: 'Pelatih membuka rekaman dan menunjukkan tiga hal kecil yang perlu kamu benahi. Catatan yang berguna.', fx: { rel: { manager: 4 }, attr: { shooting: 0.3, mental: 0.4 } } }] },
+      { label: 'Bilang sudah memberi yang terbaik', outcomes: [{ p: 0.5, text: 'Pelatih menghargai kejujuranmu, meski masih menuntut lebih.', fx: { rel: { manager: 0 }, morale: 2 } }, { p: 0.5, text: 'Pelatih mengerutkan dahi. "Kalau itu batasmu, kita punya masalah."', fx: { rel: { manager: -4 }, morale: -2 } }] },
+    ],
+  },
+  {
+    id: 'evaluasi_buruk', title: 'Evaluasi akhir musim', weight: 0, chainOnly: true,
+    text: (c) => `${coach(c)} menutup pintu ruangannya. "${evalStats(c)} Ini di bawah harapan saya, dan kamu tahu itu."`,
+    choices: [
+      { label: 'Terima kritik dan janji memperbaiki', outcomes: [{ text: 'Pelatih menghela napas lalu mengangguk. "Itu jawaban yang ingin saya dengar."', fx: { rel: { manager: 2 }, attr: { mental: 0.6 }, morale: -3 } }] },
+      { label: 'Membela diri, banyak faktor di luar kendalimu', outcomes: [{ p: 0.35, text: 'Pelatih mempertimbangkan alasanmu. "Masuk akal. Tapi hasil tetap hasil."', fx: { rel: { manager: 0 }, morale: -1 } }, { p: 0.65, text: 'Pelatih tidak suka nada bicaramu. "Jangan cari kambing hitam."', fx: { rel: { manager: -6 }, morale: -4, special: 'roleDown' } }] },
+      { label: 'Minta dicarikan klub lain', outcomes: [{ text: 'Pelatih tidak menahanmu. "Mungkin memang itu yang terbaik untuk kita berdua."', fx: { transferRequest: true, rel: { manager: -4 }, morale: -3 } }] },
+    ],
+  },
+  {
+    id: 'evaluasi_jarang', title: 'Evaluasi akhir musim', weight: 0, chainOnly: true,
+    text: (c) => `${coach(c)} memanggilmu. "${evalStats(c)} Menit bermainmu sangat sedikit musim ini. Saya ingin dengar pendapatmu."`,
+    choices: [
+      { label: 'Minta diberi kesempatan lebih banyak', outcomes: [{ p: 0.5, text: 'Pelatih berpikir lalu mengangguk. "Baik, kamu akan dapat kesempatan di pramusim. Manfaatkan."', fx: { special: 'roleUp', rel: { manager: 3 }, morale: 4 } }, { p: 0.5, text: '"Belum saatnya. Tapi saya lihat semangatmu."', fx: { rel: { manager: 1 }, morale: -1 } }] },
+      { label: 'Sabar dan terus kerja keras', outcomes: [{ text: 'Pelatih mengangguk pelan. "Kesabaran itu berharga. Saya tidak lupa."', fx: { rel: { manager: 3 }, attr: { mental: 0.6 }, morale: -1 } }] },
+      { label: 'Ingin mencari klub yang memberi menit main', outcomes: [{ text: 'Pelatih menghargai kejujuranmu. "Saya bantu kalau ada tawaran yang layak."', fx: { transferRequest: true, rel: { manager: -1 }, morale: 1 } }] },
+    ],
+  },
   // ---------- AKADEMI ----------
   {
     id: 'hari_pertama', title: 'Hari pertama di akademi', weight: 20, once: true, cond: (c) => academy(c) && c.h.age <= 16,

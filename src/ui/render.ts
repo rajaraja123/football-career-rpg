@@ -13,7 +13,7 @@ let screen: 'menu' | 'new' | 'game' = 'menu';
 let mobileTab: 'story' | 'player' | 'league' = 'story';
 let sideTab: 'tabel' | 'skor' | 'skuad' | 'jadwal' | 'karier' = 'tabel';
 let renderedLog = 0;
-const form = { name: 'Raja', archetype: 'finisher', clubId: 'mataram' };
+const form = { name: 'Nama', archetype: 'finisher', clubId: 'mataram' };
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
