@@ -158,7 +158,7 @@ export const EVENTS: EventDef[] = [
   },
   {
     id: 'asrama_rindu', title: 'Rindu rumah', weight: 10, once: true, cond: (c) => academy(c) && c.h.age <= 16,
-    text: (c) => `Malam pertama di asrama ${c.club.short}. Kamu menatap langit-langit dan teringat rumah, masakan ibu, dan teman-teman lamamu.`,
+    text: (c) => `Malam di asrama ${c.club.short}. Kamu menatap langit-langit dan teringat rumah, masakan ibu, dan teman-teman lamamu.`,
     choices: [
       { label: 'Telepon ibu dan ceritakan semuanya', outcomes: [{ text: 'Ibumu menyemangatimu sampai larut. Kamu tidur lebih tenang.', fx: { morale: 8, fitness: -2 } }] },
       { label: 'Ajak teman sekamar main game', outcomes: [{ text: 'Kalian tertawa sampai lupa waktu. Ikatan kalian makin erat.', fx: { morale: 4, rel: { team: 6 }, fitness: -4 } }] },
