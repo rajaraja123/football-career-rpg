@@ -75,7 +75,7 @@ export const SHARED: Record<string, MStep> = {
   keeperRush: {
     text: '{gk} nekat maju jauh dari garis gawang untuk memotong bola sebelum kamu tiba.',
     choices: [
-      { label: 'Cungkil bola lewat atas kepala {gk}', stat: 'shooting', diff: 66, ok: 'Cungkilan yang sempurna! Bola melambung lewat {gk} yang sudah terlanjur maju.', fail: 'Cungkilanmu terlalu tinggi dan melambung ke luar.', next: { end: 'miss' } },
+      { label: 'Cungkil bola lewat atas kepala {gk}', stat: 'shooting', diff: 66, ok: 'Cungkilan yang sempurna! Bola melambung lewat {gk} yang sudah terlanjur maju.', fail: 'Cungkilanmu terlalu tinggi dan melambung ke luar.', next: { shot: -14 } },
       { label: 'Bawa bola putar mengelabui {gk}', stat: 'dribbling', diff: 62, ok: 'Kamu memutar tubuh secepat kilat dan melewati {gk} yang sudah keluar jauh.', fail: '{gk} berhasil menepis bola sebelum kamu sempat memutarnya.', next: { end: 'miss' } },
       { label: 'Operan pendek ke {mate} yang lebih terbuka', stat: 'passing', diff: 54, ok: 'Kamu melihat {mate} di posisi lebih baik dan melepas umpan tepat waktu.', fail: 'Umpanmu terlambat, {gk} sudah keburu menyapu bola.', next: { assist: 0.5 } },
     ],
