@@ -367,7 +367,7 @@ export const SHOT_FOOT: ShotOption[] = [
   { label: 'Pojok kiri bawah', stat: 'shooting', diff: 0, fails: { saved: 40, wide: 30, block: 15, post: 15 } },
   { label: 'Pojok kanan atas', stat: 'shooting', diff: 8, fails: { wide: 45, saved: 25, post: 20, block: 10 } },
   { label: 'Placing tenang', stat: 'mental', diff: 3, fails: { saved: 55, wide: 20, block: 15, post: 10 } },
-  { label: 'Sepakan keras ke tengah', stat: 'physical', diff: -5, fails: { saved: 50, block: 30, wide: 20 } },
+  { label: 'Sepakan keras ke tengah', stat: 'physical', diff: -5, fails: { saved: 50, block: 50} },
 ];
 export const SHOT_HEAD: ShotOption[] = [
   { label: 'Arahkan ke pojok jauh', stat: 'shooting', diff: 2, fails: { wide: 45, saved: 35, post: 20 } },
