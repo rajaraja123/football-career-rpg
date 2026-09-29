@@ -88,17 +88,42 @@ export function fixturesFor(g: GameState, clubId: string) {
   });
 }
 
-/** Susunan 11 pemain terbaik klub berdasar formasi (jumlah striker). */
+export interface RosterPlayer {
+  name: string;
+  pos: Position;
+  overall: number;
+}
+
+// Skuad U-18 tiap klub: 12 nama tetap (club.youthNames) dengan posisi dan rating tetap.
+const YOUTH_POS: Position[] = ['FW', 'FW', 'MF', 'MF', 'MF', 'MF', 'DF', 'DF', 'DF', 'DF', 'DF', 'GK'];
+const YOUTH_OFFSET = [3, 1, 2, 0, -1, 1, 2, 0, -2, 1, -3, 0];
+
+export function youthRoster(club: Club): RosterPlayer[] {
+  return club.youthNames.map((name, i) => ({
+    name,
+    pos: YOUTH_POS[i] ?? 'MF',
+    overall: Math.max(25, Math.round(club.youthLevel + (YOUTH_OFFSET[i] ?? 0))),
+  }));
+}
+
+/** Daftar pemain klub yang dipakai di pertandingan: skuad U-18 saat masih akademi, skuad senior sesudahnya. */
+export function rosterOf(g: GameState, clubId: string): RosterPlayer[] {
+  if (g.hero.status === 'academy') return youthRoster(clubOf(g.world, clubId));
+  return squadOf(g.world, clubId).map((p) => ({ name: p.name, pos: p.pos, overall: p.overall }));
+}
+
+/** Susunan 11 pemain terbaik klub berdasar formasi. Ini satu-satunya sumber nama yang dipakai cerita pertandingan dan tab Skuad. */
 export function startingXI(g: GameState, clubId: string, heroIn?: { name: string; overall: number }) {
-  const sq = squadOf(g.world, clubId);
-  const by = (pos: Position) => sq.filter((p) => p.pos === pos).sort((a, b) => b.overall - a.overall);
+  const youth = g.hero.status === 'academy';
+  const roster = rosterOf(g, clubId);
+  const by = (pos: Position) => roster.filter((p) => p.pos === pos).sort((a, b) => b.overall - a.overall);
   const club = clubOf(g.world, clubId);
-  const nFw = club.formation; // 1 atau 2
-  const nMf = club.formation === 2 ? 4 : 5;
-  const gk = by('GK').slice(0, 1).map((p) => ({ name: p.name, pos: p.pos, overall: p.overall }));
-  const df = by('DF').slice(0, 4).map((p) => ({ name: p.name, pos: p.pos, overall: p.overall }));
-  const mf = by('MF').slice(0, nMf).map((p) => ({ name: p.name, pos: p.pos, overall: p.overall }));
-  let fw = by('FW').slice(0, nFw).map((p) => ({ name: p.name, pos: p.pos, overall: p.overall }));
+  const nFw = youth ? 2 : club.formation; // U-18 selalu 4-4-2
+  const nMf = youth ? 4 : club.formation === 2 ? 4 : 5;
+  const gk = by('GK').slice(0, 1);
+  const df = by('DF').slice(0, 4);
+  const mf = by('MF').slice(0, nMf);
+  let fw = by('FW').slice(0, nFw);
   if (heroIn) {
     fw = fw.slice(0, Math.max(0, nFw - 1));
     fw.push({ name: heroIn.name, pos: 'FW', overall: heroIn.overall });

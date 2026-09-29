@@ -3,17 +3,18 @@ import { act, choose, createGame, heroClub, nextFixture, seasonLabel } from '../
 import { ARCHETYPES, ATTR_KEYS, ATTR_LABEL, effRating, heroValue, overallOf, starsOfPotential } from '../engine/player';
 import { offerLine } from '../engine/transfer';
 import { money } from '../engine/util';
-import { clubLevel, clubOf, fixturesFor, sortedTable, squadOf, startingXI } from '../engine/world';
+import { clubLevel, clubOf, fixturesFor, rosterOf, sortedTable, startingXI } from '../engine/world';
 import type { GameState, LogEntry, MomentChoice, Prompt } from '../engine/types';
 import { clearSave, loadGame, saveGame } from '../save/storage';
 
 let root: HTMLElement;
 let g: GameState | null = null;
-let screen: 'menu' | 'new' | 'game' = 'menu';
+type Screen = 'menu' | 'new' | 'game';
+let screen: Screen = 'menu';
 let mobileTab: 'story' | 'player' | 'league' = 'story';
 let sideTab: 'tabel' | 'skor' | 'skuad' | 'jadwal' | 'karier' = 'tabel';
 let renderedLog = 0;
-const form = { name: 'Nama', archetype: 'finisher', clubId: 'mataram' };
+const form = { name: 'Raja', archetype: 'finisher', clubId: 'mataram' };
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
@@ -40,8 +41,14 @@ function onClick(e: Event) {
     case 'new': screen = 'new'; break;
     case 'continue': if (g) { screen = 'game'; renderedLog = g.log.length; } break;
     case 'menu': screen = 'menu'; break;
-    case 'arch': form.archetype = el.dataset.v!; break;
-    case 'club': form.clubId = el.dataset.v!; break;
+    case 'arch':
+      form.archetype = el.dataset.v!;
+      markSelected('arch', form.archetype);
+      return;
+    case 'club':
+      form.clubId = el.dataset.v!;
+      markSelected('club', form.clubId);
+      return;
     case 'start':
       g = createGame({ name: form.name, archetype: form.archetype, clubId: form.clubId });
       renderedLog = 0;
@@ -66,16 +73,28 @@ function onClick(e: Event) {
   render();
 }
 
+/** Ganti tanda 'terpilih' langsung di DOM supaya halaman tidak dibangun ulang dan posisi scroll tetap. */
+function markSelected(action: string, value: string) {
+  root.querySelectorAll<HTMLElement>(`[data-a="${action}"]`).forEach((b) => b.classList.toggle('sel', b.dataset.v === value));
+}
+
+let lastScreen: Screen | null = null;
+
 // ---------------- render utama ----------------
 
 function render() {
   document.body.dataset.tab = mobileTab;
-  if (screen === 'menu') root.innerHTML = header(false) + menuView();
-  else if (screen === 'new') root.innerHTML = header(false) + newView();
-  else if (g) {
+  if (screen === 'menu' || screen === 'new') {
+    // render ulang layar menu: pertahankan posisi scroll bila masih di layar yang sama
+    const keep = lastScreen === screen ? root.querySelector<HTMLElement>('.menu')?.scrollTop ?? 0 : 0;
+    root.innerHTML = header(false) + (screen === 'menu' ? menuView() : newView());
+    const menuEl = root.querySelector<HTMLElement>('.menu');
+    if (menuEl) menuEl.scrollTop = keep;
+  } else if (g) {
     if (root.querySelector('.main .feed')) patchGame(g);
     else buildGame(g);
   }
+  lastScreen = screen;
 }
 
 let lastEntry: LogEntry | null = null;
@@ -145,11 +164,18 @@ function nav(): string {
 
 // ---------------- menu ----------------
 
+function logoBlock(): string {
+  // Ganti public/logo.svg dengan logo aslimu (SVG atau PNG persegi, disarankan minimal 256x256).
+  // Kalau ganti nama file atau pakai .png, ubah juga src di bawah ini dan di index.html.
+  return `<img src="/logo.svg" alt="" class="logo" onerror="this.style.display='none'" />`;
+}
+
 function menuView(): string {
   const cont = g
     ? `<button class="btn primary" style="max-width:340px" data-a="continue">Lanjutkan ${esc(g.hero.name)} (umur ${g.hero.age})</button>`
     : '';
   return `<div class="menu"><div class="card">
+    ${logoBlock()}
     <h1>Garis Karier</h1>
     <p class="lead">Jalani karier striker dari akademi umur 16 sampai gantung sepatu. Tiap pekan kamu memilih latihan, menghadapi kejadian di luar lapangan, dan menentukan momen kunci di dalam pertandingan.</p>
     <div class="choices stack" style="max-width:340px">${cont}<button class="btn ${g ? '' : 'primary'}" data-a="new">${g ? 'Karier baru (menimpa save)' : 'Mulai karier baru'}</button></div>
@@ -327,18 +353,24 @@ function fixturePanel(g: GameState): string {
 
 function squadPanel(g: GameState): string {
   const club = clubOf(g.world, g.hero.clubId);
-  const xi = startingXI(g, club.id, { name: g.hero.name, overall: overallOf(g.hero.attrs) });
-  const group = (label: string, list: { name: string; overall: number }[], heroPos?: boolean) =>
+  const h = g.hero;
+  const academy = h.status === 'academy';
+  // sama seperti di pertandingan: kamu masuk susunan utama hanya kalau berstatus starter (akademi: hampir selalu)
+  const inXI = academy || h.role === 'starter';
+  const xi = startingXI(g, club.id, inXI ? { name: h.name, overall: overallOf(h.attrs) } : undefined);
+  const group = (label: string, list: { name: string; overall: number }[]) =>
     `<div class="sect" style="margin-top:10px;padding-top:8px"><h3>${label}</h3>${list
-      .map((p) => `<div class="kv"><span>${esc(p.name)}${heroPos && p.name === g.hero.name ? ' (kamu)' : ''}</span><b>${p.overall}</b></div>`)
+      .map((p) => `<div class="kv"><span>${esc(p.name)}${p.name === h.name ? ' (kamu)' : ''}</span><b>${p.overall}</b></div>`)
       .join('')}</div>`;
-  const bench = squadOf(g.world, club.id)
-    .filter((p) => ![...xi.gk, ...xi.df, ...xi.mf, ...xi.fw].some((x) => x.name === p.name))
+  const used = new Set([...xi.gk, ...xi.df, ...xi.mf, ...xi.fw].map((p) => p.name));
+  const bench = rosterOf(g, club.id)
+    .filter((p) => !used.has(p.name))
     .sort((a, b) => b.overall - a.overall);
-  return `<div class="sect" style="margin:0;padding:0;border:0"><h3>Susunan utama ${esc(club.short)} (${xi.formation})</h3></div>
-    ${group('Kiper', xi.gk)}${group('Belakang', xi.df)}${group('Tengah', xi.mf)}${group('Depan', xi.fw, true)}
-    <div class="sect"><h3>Bangku cadangan</h3>${bench.slice(0, 8).map((p) => `<div class="kv"><span>${esc(p.name)} <span style="color:#9fb0cf">(${p.pos})</span></span><b>${p.overall}</b></div>`).join('')}</div>
-    <div class="note">Angka di kanan = overall pemain. Susunan dihitung ulang tiap kali dibuka berdasar kondisi skuad saat ini.</div>`;
+  const heroBench = inXI ? '' : `<div class="kv"><span>${esc(h.name)} (kamu) <span style="color:#9fb0cf">(FW)</span></span><b>${overallOf(h.attrs)}</b></div>`;
+  return `<div class="sect" style="margin:0;padding:0;border:0"><h3>${academy ? 'Skuad U-18' : 'Susunan utama'} ${esc(club.short)} (${xi.formation})</h3></div>
+    ${group('Kiper', xi.gk)}${group('Belakang', xi.df)}${group('Tengah', xi.mf)}${group('Depan', xi.fw)}
+    <div class="sect"><h3>Bangku cadangan</h3>${heroBench}${bench.slice(0, 8).map((p) => `<div class="kv"><span>${esc(p.name)} <span style="color:#9fb0cf">(${p.pos})</span></span><b>${p.overall}</b></div>`).join('')}</div>
+    <div class="note">Angka di kanan = overall pemain. Nama-nama ini sama persis dengan yang muncul di cerita pertandingan.</div>`;
 }
 
 function tablePanel(g: GameState): string {

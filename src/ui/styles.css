@@ -139,6 +139,7 @@ tr.me td { background: rgba(255,182,46,0.16); color: var(--amber); font-weight: 
 .menu { flex: 1; overflow: auto; display: flex; justify-content: center; padding: 20px 14px 40px; }
 .card { width: min(880px, 100%); background: var(--paper); border: 2px solid var(--chalk); border-radius: 6px; padding: 26px; box-shadow: 0 6px 0 rgba(0,0,0,0.18); height: fit-content; }
 .card h1 { font-family: var(--font-display); font-weight: 800; font-size: 64px; line-height: 0.9; margin: 0 0 8px; }
+.logo { width: 88px; height: 88px; display: block; margin-bottom: 12px; filter: drop-shadow(0 3px 0 rgba(0,0,0,0.15)); }
 .card h2 { font-family: var(--font-display); font-weight: 800; font-size: 26px; margin: 22px 0 8px; }
 .card .lead { max-width: 60ch; line-height: 1.5; color: var(--ink-soft); margin: 0 0 14px; }
 .field { width: 100%; max-width: 360px; padding: 10px 12px; font: inherit; border: 2px solid var(--ink); border-radius: 4px; background: #fff; }
@@ -164,5 +165,5 @@ tr.me td { background: rgba(255,182,46,0.16); color: var(--amber); font-weight: 
   .nav button.on { color: var(--amber); }
   .entry { grid-template-columns: 44px 1fr; }
   .feed { padding: 10px 12px 6px; } .dock { padding: 12px; max-height: 62%; }
-  .card { padding: 18px; } .card h1 { font-size: 46px; }
+  .card { padding: 18px; } .card h1 { font-size: 46px; } .logo { width: 64px; height: 64px; }
 }

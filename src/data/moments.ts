@@ -7,6 +7,7 @@
 //   next         -> apa yang terjadi bila sukses
 //   failNext     -> bila gagal (default: bola hilang)
 import type { AttrKey } from '../engine/types';
+import { STRIKER_ENTRIES, STRIKER_STEPS } from './moments_striker';
 
 export type Next =
   | { step: string }
@@ -388,3 +389,7 @@ export const SHOT_TEXT = {
   post: ['Tiang! Bola membentur tiang dan keluar.', 'Mistar gawang bergetar! Nyaris sekali.'],
   fall: ['Kamu kehilangan keseimbangan dan jatuh sebelum bola tersentuh sempurna.', 'Percobaanmu berakhir dengan kamu tersungkur di rumput, bola melintas begitu saja.', 'Kakimu tidak sampai menjangkau bola, kamu terjatuh dengan canggung.'],
 } as const;
+
+// Sambungkan paket momen striker (src/data/moments_striker.ts) ke daftar utama.
+Object.assign(SHARED, STRIKER_STEPS);
+MOMENTS.push(...STRIKER_ENTRIES);

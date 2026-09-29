@@ -6,8 +6,11 @@ import { clamp, r1, sigmoid } from './util';
 import { applyResult, clubOf, squadOf, startingXI, teamRatings } from './world';
 import type { Chance, Club, GameState, MatchState, MomentState, Prompt } from './types';
 
-const SHOT_BASE = 87;
-const STEP_BIAS = 4; // makin besar = aksi makin sulit secara umum
+export const SHOT_BASE = 105;
+export const SLOPE = 16; // makin besar = stat makin kecil pengaruhnya (lebih banyak faktor keberuntungan)
+export const ASSIST_SCALE = 0.65; // pengali peluang rekan mencetak gol dari assist
+export const STEP_BIAS_BASE = -1;
+let STEP_BIAS = STEP_BIAS_BASE; // makin besar = aksi makin sulit secara umum
 const ALL_TEMPLATES = [...MOMENTS, ...LATE_MOMENTS];
 const BLOCKS = 18; // 18 blok x 5 menit
 
@@ -34,20 +37,13 @@ export function startMatch(g: GameState, oppId: string, home: boolean, starter: 
   const usR = teamRatings(g, us.id, youth, starter ? heroOvr : undefined);
   const themR = teamRatings(g, opp.id, youth);
 
-  let mates: string[], oppAtk: string[], oppDef: string[], oppGK: string;
-  if (youth) {
-    mates = us.youthNames.slice(0, 8);
-    oppAtk = opp.youthNames.slice(0, 6);
-    oppDef = opp.youthNames.slice(6, 11);
-    oppGK = opp.youthNames[11];
-  } else {
-    const sq = squadOf(g.world, us.id);
-    const osq = squadOf(g.world, opp.id);
-    mates = sq.filter((p) => p.pos === 'MF' || p.pos === 'FW').sort((a, b) => b.overall - a.overall).slice(0, 7).map((p) => p.name);
-    oppAtk = osq.filter((p) => p.pos === 'MF' || p.pos === 'FW').sort((a, b) => b.overall - a.overall).slice(0, 6).map((p) => p.name);
-    oppDef = osq.filter((p) => p.pos === 'DF').sort((a, b) => b.overall - a.overall).slice(0, 4).map((p) => p.name);
-    oppGK = osq.filter((p) => p.pos === 'GK').sort((a, b) => b.overall - a.overall)[0].name;
-  }
+  // Semua nama diambil dari susunan utama yang sama dengan tab Skuad, jadi selalu konsisten.
+  const xiUs = starter ? startingXI(g, us.id, { name: h.name, overall: heroOvr }) : startingXI(g, us.id);
+  const xiThem = startingXI(g, opp.id);
+  const mates = [...xiUs.mf, ...xiUs.fw].filter((p) => p.name !== h.name).map((p) => p.name);
+  const oppAtk = [...xiThem.mf, ...xiThem.fw].map((p) => p.name);
+  const oppDef = xiThem.df.map((p) => p.name);
+  const oppGK = xiThem.gk[0]?.name ?? 'kiper lawan';
 
   let from = 0;
   let to = 90;
@@ -69,13 +65,9 @@ export function startMatch(g: GameState, oppId: string, home: boolean, starter: 
     injuryWeeks = r < 0.55 ? rng.int(1, 2) : r < 0.85 ? rng.int(3, 6) : r < 0.98 ? rng.int(8, 16) : rng.int(28, 40);
   }
 
-  const lineupUs = youth
-    ? []
-    : (() => {
-        const xi = starter ? startingXI(g, us.id, { name: g.hero.name, overall: heroOvr }) : startingXI(g, us.id);
-        return [...xi.gk, ...xi.df, ...xi.mf, ...xi.fw];
-      })();
-  const lineupThem = youth ? [] : (() => { const xi = startingXI(g, opp.id); return [...xi.gk, ...xi.df, ...xi.mf, ...xi.fw]; })();
+  const flat = (x: typeof xiUs) => [...x.gk, ...x.df, ...x.mf, ...x.fw];
+  const lineupUs = flat(xiUs);
+  const lineupThem = flat(xiThem);
 
   const m: MatchState = {
     oppId, home, youth, block: 0, queue: [], score: { us: 0, them: 0 },
@@ -88,11 +80,9 @@ export function startMatch(g: GameState, oppId: string, home: boolean, starter: 
 
   const comp = youth ? ' (U-18)' : '';
   log(g, 'match', `${us.short} ${home ? 'vs' : '@'} ${opp.short}${comp}. ${home ? 'Kandang.' : 'Tandang.'}`, 'Kick-off');
-  if (!youth) {
-    const nm = (l: typeof lineupUs) => l.map((p) => p.name).join(', ');
-    log(g, 'sys', `Susunan ${us.short} (${startingXI(g, us.id).formation}): ${nm(lineupUs)}.`);
-    log(g, 'sys', `Susunan ${opp.short} (${startingXI(g, opp.id).formation}): ${nm(lineupThem)}.`);
-  }
+  const nm = (l: typeof lineupUs) => l.map((p) => p.name).join(', ');
+  log(g, 'sys', `Susunan ${us.short} (${xiUs.formation}): ${nm(lineupUs)}.`);
+  log(g, 'sys', `Susunan ${opp.short} (${xiThem.formation}): ${nm(lineupThem)}.`);
   if (starter) log(g, 'story', `Namamu ada di susunan pemain utama. Kamu berjalan ke lapangan bersama ${m.mates[0]} dan ${m.mates[1]}.`);
   else log(g, 'story', `Kamu duduk di bangku cadangan, memanaskan badan di pinggir lapangan.`);
 }
@@ -112,9 +102,14 @@ function effStat(g: GameState, m: MatchState, stat: keyof typeof g.hero.attrs, m
   return v;
 }
 
+/** Rumus murni peluang berhasil (dipakai game dan skrip audit). */
+export function chanceOf(stat: number, diff: number, themDef: number, youth: boolean): number {
+  const opp = (themDef - 58) * 0.6 - (youth ? 12 : 0); // liga U-18 lebih mudah
+  return clamp(sigmoid((stat - (diff + STEP_BIAS + opp)) / SLOPE), 0.04, 0.96);
+}
+
 export function pOf(g: GameState, m: MatchState, stat: keyof typeof g.hero.attrs, diff: number, minute: number): number {
-  const opp = (m.ratings.themDef - 58) * 0.6 - (m.youth ? 12 : 0); // liga U-18 lebih mudah
-  return clamp(sigmoid((effStat(g, m, stat, minute) - (diff + STEP_BIAS + opp)) / 13), 0.04, 0.96);
+  return chanceOf(effStat(g, m, stat, minute), diff, m.ratings.themDef, m.youth);
 }
 
 // ---------- simulasi blok ----------
@@ -142,7 +137,7 @@ function genBlock(g: GameState, m: MatchState, rng: RNG) {
     if (rng.chance(p - n)) n++;
     for (let i = 0; i < n; i++) chances.push({ team, minute: start + rng.int(0, 4), kind: 'chance' });
   }
-  if (rng.chance(0.05)) chances.push({ team: 'us', minute: start + rng.int(0, 4), kind: 'press' });
+  if (rng.chance(0.02)) chances.push({ team: 'us', minute: start + rng.int(0, 4), kind: 'press' });
   chances.sort((a, b) => a.minute - b.minute);
   m.queue.push(...chances);
   m.block++;
@@ -324,7 +319,7 @@ function applyNext(g: GameState, m: MatchState, mo: MomentState, next: Next, rng
     return;
   }
   if ('assist' in next) {
-    const p = clamp(next.assist * Math.exp(-(m.ratings.themDef - 58) / 60) + (g.hero.rel.team - 50) * 0.0015, 0.05, 0.8);
+    const p = clamp(next.assist * ASSIST_SCALE * Math.exp(-(m.ratings.themDef - 58) / 60) + (g.hero.rel.team - 50) * 0.0015, 0.05, 0.8);
     if (rng.chance(p)) {
       m.assists++;
       m.rating += 0.7;
