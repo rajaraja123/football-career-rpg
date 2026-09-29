@@ -109,6 +109,34 @@ function buildGame(g: GameState) {
 }
 
 /** Update layar game tanpa menghancurkan feed, supaya scroll tetap seperti chat. */
+const REVEAL_MS = 240; // jeda antar baris teks pertandingan
+const REVEAL_MAX = 16; // di atas ini, tampilkan langsung tanpa jeda (hindari menunggu lama)
+
+function trimFeed(feedEl: HTMLElement) {
+  while (feedEl.childElementCount > 200) feedEl.firstElementChild?.remove();
+}
+
+/** Tampilkan entri baru satu per satu (seperti chat), baru setelah selesai panggil onDone (biasanya menukar dock). */
+function streamEntries(feedEl: HTMLElement, entries: LogEntry[], onDone: () => void) {
+  if (entries.length === 0 || entries.length > REVEAL_MAX) {
+    feedEl.insertAdjacentHTML('beforeend', entries.map((e) => entryHtml(e, true)).join(''));
+    trimFeed(feedEl);
+    if (entries.length) feedEl.scrollTo({ top: feedEl.scrollHeight, behavior: 'smooth' });
+    onDone();
+    return;
+  }
+  let i = 0;
+  const step = () => {
+    if (i >= entries.length) return onDone();
+    feedEl.insertAdjacentHTML('beforeend', entryHtml(entries[i], true));
+    trimFeed(feedEl);
+    feedEl.scrollTo({ top: feedEl.scrollHeight, behavior: 'smooth' });
+    i++;
+    setTimeout(step, REVEAL_MS);
+  };
+  step();
+}
+
 function patchGame(g: GameState) {
   const swap = (sel: string, html: string) => {
     const el = root.querySelector(sel);
@@ -116,29 +144,39 @@ function patchGame(g: GameState) {
   };
   swap('.top', header(true));
   swap('.nav', nav());
-  swap('.dock', dock(g));
   const left = root.querySelector('.left-pane');
   if (left) left.innerHTML = playerPanel(g);
   const right = root.querySelector('.right-pane');
   if (right) right.innerHTML = sidePanel(g);
 
   const feedEl = root.querySelector<HTMLElement>('.feed');
-  if (!feedEl) return;
+  if (!feedEl) {
+    swap('.dock', dock(g));
+    renderedLog = g.log.length;
+    lastEntry = g.log[g.log.length - 1] ?? null;
+    return;
+  }
+
+  // kunci dock lama dulu (redup, tidak bisa diklik) sampai teks baru selesai tampil,
+  // supaya tidak ada klik "nyasar" ke pilihan yang sudah tidak berlaku.
+  const dockEl = root.querySelector<HTMLElement>('.dock');
+  dockEl?.classList.add('locked');
+
+  const finish = () => {
+    swap('.dock', dock(g));
+    renderedLog = g.log.length;
+    lastEntry = g.log[g.log.length - 1] ?? null;
+  };
+
   const idx = lastEntry ? g.log.lastIndexOf(lastEntry) : -1;
   if (lastEntry && idx === -1) {
     // entri lama sudah terpotong dari log: bangun ulang feed, tanpa animasi scroll
     feedEl.innerHTML = feedItems(g, 0);
     jumpToBottom(feedEl);
-  } else {
-    const fresh = g.log.slice(idx + 1);
-    if (fresh.length) {
-      feedEl.insertAdjacentHTML('beforeend', fresh.map((e) => entryHtml(e, true)).join(''));
-      while (feedEl.childElementCount > 200) feedEl.firstElementChild?.remove();
-      feedEl.scrollTo({ top: feedEl.scrollHeight, behavior: 'smooth' });
-    }
+    finish();
+    return;
   }
-  renderedLog = g.log.length;
-  lastEntry = g.log[g.log.length - 1] ?? null;
+  streamEntries(feedEl, g.log.slice(idx + 1), finish);
 }
 
 function jumpToBottom(el: HTMLElement) {
@@ -271,6 +309,11 @@ function dock(g: GameState): string {
         <div class="choices">${p.choices.map((c, i) => `<button class="btn" data-a="choose" data-i="${i}">${riskChip(c)}${esc(c.label)}</button>`).join('')}</div></div></div>`;
     case 'info':
       return `<div class="dock"><h4>${esc(p.title)}</h4><ul class="lines">${p.lines.map((l) => `<li>${esc(l)}</li>`).join('')}</ul>
+        <div class="choices"><button class="btn primary" data-a="choose" data-i="0">${esc(p.button)}</button></div></div>`;
+    case 'matchday':
+      return `<div class="dock"><div class="matchday">
+        <div class="vs"><span>${esc(g.hero.status === 'academy' ? clubOf(g.world, g.hero.clubId).short : clubOf(g.world, g.hero.clubId).short)}</span><span class="vs-mid">${p.home ? 'vs' : '@'}</span><span>${esc(p.oppShort)}</span></div>
+        <h4>${esc(p.title)}</h4><p>${esc(p.text)}</p></div>
         <div class="choices"><button class="btn primary" data-a="choose" data-i="0">${esc(p.button)}</button></div></div>`;
     case 'offers': {
       const list = p.offers.map((o, i) => `<button class="btn" data-a="choose" data-i="${i}">${esc(clubOf(g.world, o.clubId).name)}<small>${esc(offerLine(g, o).split(' · ').slice(1).join(' · '))}</small></button>`).join('');

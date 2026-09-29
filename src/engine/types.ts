@@ -142,6 +142,7 @@ export type Prompt =
   | { kind: 'event'; title: string; text: string; choices: string[] }
   | { kind: 'moment'; title: string; text: string; minute: number; choices: MomentChoice[] }
   | { kind: 'info'; title: string; lines: string[]; button: string }
+  | { kind: 'matchday'; title: string; text: string; button: string; injured: boolean; home: boolean; oppName: string; oppShort: string }
   | { kind: 'offers'; title: string; text: string; offers: Offer[]; canStay: boolean; stayLabel: string }
   | { kind: 'retire'; canContinue: boolean; text: string }
   | { kind: 'end'; title: string; lines: string[] };
@@ -196,6 +197,7 @@ export interface MatchState {
 export type Stage =
   | 'weekStart'
   | 'weekEvent'
+  | 'matchday'
   | 'preMatch'
   | 'inMatch'
   | 'matchDone'

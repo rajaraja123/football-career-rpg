@@ -104,13 +104,14 @@ export function choose(g: GameState, idx: number): void {
     case 'rehab': doRehab(g, idx); break;
     case 'event':
       resolveEvent(g, idx);
-      if (g.stage === 'weekEvent') g.stage = 'preMatch'; // evaluasi akhir musim tetap di tahap offseason
+      if (g.stage === 'weekEvent') g.stage = 'matchday'; // evaluasi akhir musim tetap di tahap offseason
       break;
     case 'moment':
       resolveMoment(g, idx);
       if (g.match && g.match.moment) return; // masih di momen yang sama (langkah berikutnya)
       break;
     case 'info': break;
+    case 'matchday': g.stage = 'preMatch'; break;
     case 'offers': handleOffer(g, idx); break;
     case 'retire': handleRetire(g, idx); break;
     case 'end': return;
@@ -146,6 +147,7 @@ function step(g: GameState): boolean {
   switch (g.stage) {
     case 'weekStart': return stageWeekStart(g);
     case 'weekEvent': return stageWeekEvent(g);
+    case 'matchday': return stageMatchday(g);
     case 'preMatch': return stagePreMatch(g);
     case 'inMatch': return stageInMatch(g);
     case 'matchDone': return stageMatchDone(g);
@@ -223,7 +225,7 @@ function stageWeekEvent(g: GameState): boolean {
   const rng = new RNG(g);
   const ev = pickEvent(g, rng);
   if (!ev) {
-    g.stage = 'preMatch';
+    g.stage = 'matchday';
     return false;
   }
   openEvent(g, ev);
@@ -242,6 +244,26 @@ function selection(g: GameState, rng: RNG): 'starter' | 'sub' | 'out' {
   if (rank === club.formation) return rng.chance(0.75) ? 'sub' : 'out';
   if (rank === club.formation + 1) return rng.chance(0.3) ? 'sub' : 'out';
   return rng.chance(0.15) ? 'sub' : 'out';
+}
+
+function stageMatchday(g: GameState): boolean {
+  const h = g.hero;
+  const fx = g.world.schedule[g.week - 1].find((f) => f.includes(h.clubId))!;
+  const home = fx[0] === h.clubId;
+  const opp = clubOf(g.world, home ? fx[1] : fx[0]);
+  g.stage = 'preMatch';
+  if (h.injuryWeeks > 0) {
+    g.prompt = {
+      kind: 'matchday', title: 'Hari pertandingan', button: 'Lanjut', injured: true, home, oppName: opp.name, oppShort: opp.short,
+      text: `${h.status === 'academy' ? 'Tim U-18' : clubOf(g.world, h.clubId).short} ${home ? 'menjamu' : 'bertandang ke'} ${opp.name} pekan ini, tapi kamu masih dalam masa pemulihan cedera (${h.injuryWeeks} pekan lagi). Kamu tidak bisa diturunkan.`,
+    };
+    return true;
+  }
+  g.prompt = {
+    kind: 'matchday', title: 'Hari pertandingan', button: 'Mulai pertandingan', injured: false, home, oppName: opp.name, oppShort: opp.short,
+    text: `${home ? `Kandang sendiri, melawan ${opp.name}.` : `Tandang ke markas ${opp.name}.`} ${home ? 'Suporter memenuhi tribun, siap mendukungmu.' : 'Suasana kandang lawan cukup panas.'}`,
+  };
+  return true;
 }
 
 function stagePreMatch(g: GameState): boolean {
