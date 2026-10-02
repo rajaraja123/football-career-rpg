@@ -75,6 +75,7 @@ export function startMatch(g: GameState, oppId: string, home: boolean, starter: 
     ratings: { usAtk: usR.atk + (home ? 2.5 : -2.5), usDef: usR.def, themAtk: themR.atk + (home ? -2.5 : 2.5), themDef: themR.def },
     mates, oppAtk, oppDef, oppGK, lineupUs, lineupThem,
     goals: 0, assists: 0, shots: 0, moments: 0, rating: 6.0, moment: null, done: false,
+    usScorers: [], themScorers: [],
   };
   g.match = m;
 
@@ -83,7 +84,10 @@ export function startMatch(g: GameState, oppId: string, home: boolean, starter: 
   const nm = (l: typeof lineupUs) => l.map((p) => p.name).join(', ');
   log(g, 'sys', `Susunan ${us.short} (${xiUs.formation}): ${nm(lineupUs)}.`);
   log(g, 'sys', `Susunan ${opp.short} (${xiThem.formation}): ${nm(lineupThem)}.`);
-  if (starter) log(g, 'story', `Namamu ada di susunan pemain utama. Kamu berjalan ke lapangan bersama ${m.mates[0]} dan ${m.mates[1]}.`);
+  if (starter) {
+    const [a, b] = rng.shuffle(m.mates).slice(0, 2);
+    log(g, 'story', `Namamu ada di susunan pemain utama. Kamu berjalan ke lapangan bersama ${a} dan ${b}.`);
+  }
   else log(g, 'story', `Kamu duduk di bangku cadangan, memanaskan badan di pinggir lapangan.`);
 }
 
@@ -146,8 +150,8 @@ function genBlock(g: GameState, m: MatchState, rng: RNG) {
 function teamGoal(g: GameState, m: MatchState, team: 'us' | 'them', minute: number, scorer: string) {
   const us = heroClub(g);
   const opp = clubOf(g.world, m.oppId);
-  if (team === 'us') m.score.us++;
-  else m.score.them++;
+  if (team === 'us') { m.score.us++; m.usScorers.push(scorer); }
+  else { m.score.them++; m.themScorers.push(scorer); }
   const text = team === 'us'
     ? `GOL untuk ${us.short}! ${scorer} mencetak gol. ${us.short} ${m.score.us}-${m.score.them} ${opp.short}.`
     : `Gol untuk ${opp.short}. ${scorer} membobol gawang. ${us.short} ${m.score.us}-${m.score.them} ${opp.short}.`;
@@ -244,6 +248,7 @@ export function momentPrompt(g: GameState): Prompt {
       title: 'Saatnya menembak!',
       text: shotText,
       minute: mo.minute,
+      poss: 'has',
       choices: shotOptions(mo).map((o) => ({ label: o.label, p: pOf(g, m, o.stat, SHOT_BASE + o.diff + mo.shotMod, mo.minute) })),
     };
   }
@@ -253,6 +258,7 @@ export function momentPrompt(g: GameState): Prompt {
     title: tpl.title,
     text: fill(step.text, m, mo, opp),
     minute: mo.minute,
+    poss: step.poss ?? 'has',
     choices: step.choices.map((c) => ({
       label: fill(c.label, m, mo, opp),
       p: c.stat ? pOf(g, m, c.stat, c.diff ?? 55, mo.minute) : -1,
@@ -386,7 +392,7 @@ export function finishMatch(g: GameState): { lines: string[]; title: string } {
 
   const homeId = m.home ? us.id : opp.id;
   const awayId = m.home ? opp.id : us.id;
-  applyResult(g.world, homeId, awayId, m.home ? m.score.us : m.score.them, m.home ? m.score.them : m.score.us);
+  applyResult(g.world, g.week, homeId, awayId, m.home ? m.score.us : m.score.them, m.home ? m.score.them : m.score.us);
 
   for (const s of [h.season, h.career]) {
     s.apps++;
@@ -424,16 +430,44 @@ export function finishMatch(g: GameState): { lines: string[]; title: string } {
   const outcome = res > 0 ? 'Menang' : res < 0 ? 'Kalah' : 'Imbang';
   log(g, 'match', `Peluit panjang. ${us.short} ${m.score.us}-${m.score.them} ${opp.short}. ${outcome}.`, "90'");
 
+  const motmLine = pickMotm(g, m, us, opp, rating, played, rng);
+
   const lines: string[] = [
     `${us.short} ${m.score.us}-${m.score.them} ${opp.short}  (${outcome})`,
     `Menit main: ${minutes}  ·  Gol: ${m.goals}  ·  Assist: ${m.assists}  ·  Tembakan: ${m.shots}`,
     `Rating pertandingan: ${r1(rating)}`,
+    motmLine,
   ];
-  if (rating >= 8.5) lines.push('Kamu dinobatkan sebagai pemain terbaik pertandingan.');
-  else if (rating < 5.2 && played) lines.push('Malam yang berat. Kamu kesulitan mengikuti tempo pertandingan.');
+  if (rating < 5.2 && played) lines.push('Malam yang berat. Kamu kesulitan mengikuti tempo pertandingan.');
   if (m.goals >= 3) lines.push('Hat-trick! Nama kamu akan ada di semua headline besok.');
   if (!played) lines.push('Kamu tidak sempat masuk lapangan.');
 
   g.match = null;
   return { lines, title: 'Ringkasan pertandingan' };
+}
+
+/** Pilih pemain terbaik pertandingan: hero dinilai dari rating sungguhan,
+ * pemain lain diperkirakan dari overall + gol yang dicetak di laga ini. */
+function pickMotm(g: GameState, m: MatchState, us: Club, opp: Club, heroRating: number, played: boolean, rng: RNG): string {
+  const h = g.hero;
+  const approxRating = (overall: number, goals: number, assists = 0) =>
+    clamp(5.6 + (overall - 60) / 14 + goals * 0.9 + assists * 0.4 + rng.gauss(0, 0.35), 3, 10);
+  const countGoals = (name: string, arr: string[]) => arr.filter((n) => n === name).length;
+
+  type Cand = { name: string; club: string; rating: number };
+  const cands: Cand[] = [];
+  if (played) cands.push({ name: h.name, club: us.short, rating: heroRating });
+  for (const p of m.lineupUs) {
+    if (p.name === h.name) continue;
+    cands.push({ name: p.name, club: us.short, rating: approxRating(p.overall, countGoals(p.name, m.usScorers)) });
+  }
+  for (const p of m.lineupThem) {
+    cands.push({ name: p.name, club: opp.short, rating: approxRating(p.overall, countGoals(p.name, m.themScorers)) });
+  }
+  if (cands.length === 0) return '';
+  const motm = cands.reduce((best, c) => (c.rating > best.rating ? c : best));
+  const isHero = motm.name === h.name;
+  return isHero
+    ? `🏅 Pemain Terbaik Pertandingan: kamu! (${r1(motm.rating)})`
+    : `🏅 Pemain Terbaik Pertandingan: ${motm.name} (${motm.club}, ${r1(motm.rating)})`;
 }

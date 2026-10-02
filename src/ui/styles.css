@@ -88,6 +88,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .entry.good { color: var(--green); font-weight: 600; }
 .entry.bad { color: var(--red); }
 .entry.event { padding-left: 8px; border-left: 4px solid var(--gold); background: var(--paper-2); margin: 4px 0; padding-top: 7px; padding-bottom: 7px; }
+.nm-us { color: #1565c0; font-weight: 600; }
+.nm-opp { color: #a13328; font-weight: 600; }
+.entry.goal .nm-us, .moment .nm-us { color: #8ec4ff; }
+.entry.goal .nm-opp, .moment .nm-opp { color: #ff9c96; }
 .entry.week { display: block; max-width: none; margin: 18px 0 6px; padding: 4px 0; border-bottom: 2px solid var(--ink); font-family: var(--font-display); font-weight: 800; font-size: 24px; }
 .entry.week .tag { display: inline; margin-left: 10px; font-size: 15px; font-weight: 600; color: var(--ink-soft); font-family: var(--font-text); }
 .entry.fresh { animation: pop 0.35s ease-out; }
@@ -119,8 +123,12 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .matchday p { max-width: 52ch; margin-left: auto; margin-right: auto; }
 @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(255,182,46,0.7); } 100% { box-shadow: 0 0 0 16px rgba(255,182,46,0); } }
 .moment .min { font-family: var(--font-display); font-weight: 800; font-size: 44px; color: var(--amber); line-height: 0.9; margin-right: 12px; }
-.moment .hd { display: flex; align-items: center; margin-bottom: 6px; }
-.moment .hd h4 { margin: 0; color: var(--chalk); }
+.moment .hd { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; margin-bottom: 6px; }
+.moment .hd h4 { margin: 0; color: var(--chalk); flex: 1; }
+.poss { font-family: var(--font-display); font-weight: 600; font-size: 14px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--board-line); white-space: nowrap; }
+.poss-has { background: rgba(76,194,114,0.18); border-color: #4cc272; color: #8fe0ac; }
+.poss-incoming { background: rgba(255,182,46,0.16); border-color: var(--amber-dim); color: var(--amber); }
+.poss-off { background: rgba(158,171,201,0.14); border-color: var(--board-line); color: #b9c6e0; }
 .moment .btn { background: var(--board-2); color: var(--chalk); border-color: var(--board-line); }
 .moment .btn:hover { border-color: var(--amber); box-shadow: 0 3px 0 var(--amber-dim); background: #1f2f4f; }
 .tools { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
@@ -138,6 +146,10 @@ th:nth-child(2), td:nth-child(2) { text-align: left; }
 td { padding: 4px; text-align: right; border-top: 1px solid var(--board-line); }
 td:first-child, th:first-child { text-align: left; width: 26px; }
 tr.me td { background: rgba(255,182,46,0.16); color: var(--amber); font-weight: 600; }
+.res { font-family: var(--font-display); font-weight: 700; font-size: 14px; padding: 1px 7px; border-radius: 4px; }
+.res-W { background: rgba(76,194,114,0.18); color: #2c8a4a; }
+.res-D { background: rgba(158,171,201,0.2); color: #55604d; }
+.res-L { background: rgba(214,59,52,0.16); color: #b33730; }
 .note { font-size: 14px; color: #9fb0cf; margin-top: 8px; }
 .trophy { padding: 5px 0; border-top: 1px solid var(--board-line); font-size: 15px; color: var(--amber); }
 

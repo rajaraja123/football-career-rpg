@@ -248,6 +248,12 @@ function selection(g: GameState, rng: RNG): 'starter' | 'sub' | 'out' {
 
 function stageMatchday(g: GameState): boolean {
   const h = g.hero;
+  if (h.status === 'senior' && h.contract.yearsLeft <= 0) {
+    g.stage = 'weekEnd';
+    log(g, 'story', 'Tanpa klub pekan ini. Kamu berlatih sendiri dan menunggu kabar dari agenmu.');
+    h.morale = clamp(h.morale - 1, 0, 100);
+    return false;
+  }
   const fx = g.world.schedule[g.week - 1].find((f) => f.includes(h.clubId))!;
   const home = fx[0] === h.clubId;
   const opp = clubOf(g.world, home ? fx[1] : fx[0]);
@@ -368,6 +374,17 @@ function offersPrompt(g: GameState, mode: OfferMode, offers: Offer[]): Prompt {
 function stageWindow(g: GameState): boolean {
   const h = g.hero;
   g.stage = 'weekStart';
+  if (h.contract.yearsLeft <= 0) {
+    // sedang tanpa klub: coba lagi di bursa tengah musim, bukan mode window biasa (itu untuk pemain berkontrak)
+    const offers = makeOffers(g, 'free');
+    if (offers.length === 0) {
+      log(g, 'story', 'Bursa transfer paruh musim dibuka, tapi belum ada klub yang menawarimu kontrak.');
+      return false;
+    }
+    log(g, 'event', 'Bursa transfer paruh musim dibuka. Akhirnya ada klub yang berminat.');
+    g.prompt = offersPrompt(g, 'free', offers);
+    return true;
+  }
   const offers = makeOffers(g, 'window');
   if (offers.length === 0) {
     if (h.transferRequested) log(g, 'story', 'Agenmu belum menemukan klub yang cocok pada bursa transfer kali ini.');
@@ -507,8 +524,25 @@ function stageOffseason(g: GameState): boolean {
         return false;
       }
       if (h.contract.yearsLeft <= 0) {
-        log(g, 'event', 'Kontrakmu berakhir. Kamu berstatus bebas transfer.');
-        g.prompt = offersPrompt(g, 'free', makeOffers(g, 'free'));
+        const tries = (h.flags.freeAgentTries ?? 0) + 1;
+        h.flags.freeAgentTries = tries;
+        const offers = makeOffers(g, 'free');
+        if (offers.length > 0) {
+          h.flags.freeAgentTries = 0;
+          log(g, 'event', tries === 1 ? 'Kontrakmu berakhir. Kamu berstatus bebas transfer.' : 'Setelah menunggu, akhirnya ada tawaran kontrak musim ini.');
+          g.prompt = offersPrompt(g, 'free', offers);
+          return true;
+        }
+        if (tries >= 2) {
+          // sudah 2 musim penuh tanpa klub: terpaksa, tapi tetap ada yang mau menampungmu
+          const weakest = [...g.world.clubs].sort((a, b) => a.reputation - b.reputation)[0];
+          h.flags.freeAgentTries = 0;
+          log(g, 'event', `Setelah mencari lama tanpa hasil, agenmu akhirnya menemukan klub yang mau menampungmu: ${weakest.name}.`);
+          g.prompt = offersPrompt(g, 'free', [{ clubId: weakest.id, role: 'prospect', salary: 1, years: 1, fee: 0 }]);
+          return true;
+        }
+        log(g, 'event', `Musim ini kamu tidak mendapat tawaran kontrak sama sekali. Agenmu akan terus mencari klub berikutnya.`);
+        g.prompt = info('Masih tanpa klub', [`Tidak ada klub yang menawarimu kontrak musim ini.`, 'Kamu tetap berlatih sendiri sambil menunggu kabar dari agenmu musim depan.'], 'Lanjut');
         return true;
       }
       const offers = makeOffers(g, 'window');

@@ -28,6 +28,8 @@ export interface MChoice {
 export interface MStep {
   text: string;
   choices: MChoice[];
+  /** Status penguasaan bola saat langkah ini ditampilkan (buat indikator di UI). */
+  poss?: 'has' | 'incoming' | 'off';
 }
 export interface MTemplate {
   id: string;
@@ -75,8 +77,8 @@ export const SHARED: Record<string, MStep> = {
   keeperRush: {
     text: '{gk} nekat maju jauh dari garis gawang untuk memotong bola sebelum kamu tiba.',
     choices: [
-      { label: 'Cungkil bola lewat atas kepala {gk}', stat: 'shooting', diff: 66, ok: 'Cungkilan yang sempurna! Bola melambung lewat {gk} yang sudah terlanjur maju.', fail: 'Cungkilanmu terlalu tinggi dan melambung ke luar.', next: { shot: -14 } },
-      { label: 'Bawa bola putar mengelabui {gk}', stat: 'dribbling', diff: 62, ok: 'Kamu memutar tubuh secepat kilat dan melewati {gk} yang sudah keluar jauh.', fail: '{gk} berhasil menepis bola sebelum kamu sempat memutarnya.', next: { end: 'miss' } },
+      { label: 'Cungkil bola lewat atas kepala {gk}', stat: 'shooting', diff: 66, ok: 'Cungkilan yang sempurna! Bola melambung lewat {gk} yang sudah terlanjur maju... dan masuk!', fail: 'Cungkilanmu terlalu tinggi dan melambung ke luar.', next: { end: 'goal' } },
+      { label: 'Bawa bola putar mengelabui {gk}', stat: 'dribbling', diff: 62, ok: 'Kamu memutar tubuh secepat kilat, melewati {gk} yang sudah keluar jauh, dan menyarangkan bola ke gawang kosong!', fail: '{gk} berhasil menepis bola sebelum kamu sempat memutarnya.', next: { end: 'goal' } },
       { label: 'Operan pendek ke {mate} yang lebih terbuka', stat: 'passing', diff: 54, ok: 'Kamu melihat {mate} di posisi lebih baik dan melepas umpan tepat waktu.', fail: 'Umpanmu terlambat, {gk} sudah keburu menyapu bola.', next: { assist: 0.5 } },
     ],
   },
@@ -367,7 +369,7 @@ export const SHOT_FOOT: ShotOption[] = [
   { label: 'Pojok kiri bawah', stat: 'shooting', diff: 0, fails: { saved: 40, wide: 30, block: 15, post: 15 } },
   { label: 'Pojok kanan atas', stat: 'shooting', diff: 8, fails: { wide: 45, saved: 25, post: 20, block: 10 } },
   { label: 'Placing tenang', stat: 'mental', diff: 3, fails: { saved: 55, wide: 20, block: 15, post: 10 } },
-  { label: 'Sepakan keras ke tengah', stat: 'physical', diff: -5, fails: { saved: 50, block: 50} },
+  { label: 'Sepakan keras ke tengah', stat: 'physical', diff: -5, fails: { saved: 50, block: 30, wide: 20 } },
 ];
 export const SHOT_HEAD: ShotOption[] = [
   { label: 'Arahkan ke pojok jauh', stat: 'shooting', diff: 2, fails: { wide: 45, saved: 35, post: 20 } },
@@ -389,6 +391,23 @@ export const SHOT_TEXT = {
   post: ['Tiang! Bola membentur tiang dan keluar.', 'Mistar gawang bergetar! Nyaris sekali.'],
   fall: ['Kamu kehilangan keseimbangan dan jatuh sebelum bola tersentuh sempurna.', 'Percobaanmu berakhir dengan kamu tersungkur di rumput, bola melintas begitu saja.', 'Kakimu tidak sampai menjangkau bola, kamu terjatuh dengan canggung.'],
 } as const;
+
+// ---------- indikator penguasaan bola per langkah ----------
+// has = bola di kakimu, incoming = bola menuju/belum sampai kamu, off = kamu bergerak tanpa bola.
+type Poss = 'has' | 'incoming' | 'off';
+const POSS_SHARED: Record<string, Poss> = {
+  control: 'has', oneOne: 'has', tightAngle: 'has', crowded: 'incoming',
+  keeperRush: 'has', lastDefender: 'has', looseAerial: 'incoming',
+};
+const POSS_TEMPLATE: Record<string, Poss> = {
+  longball: 'incoming', through: 'off', cross: 'incoming', rebound: 'incoming',
+  counter: 'incoming', wide: 'has', press: 'off', pen: 'has',
+  holdup: 'has', holdup2: 'has', duel: 'incoming', shield: 'has',
+  ot: 'off', decoy: 'off', wp: 'incoming', db: 'off', late: 'incoming',
+};
+for (const [id, poss] of Object.entries(POSS_SHARED)) if (SHARED[id]) SHARED[id].poss = poss;
+for (const t of MOMENTS) for (const [sid, poss] of Object.entries(POSS_TEMPLATE)) if (t.steps[sid]) t.steps[sid].poss = poss;
+for (const t of LATE_MOMENTS) for (const [sid, poss] of Object.entries(POSS_TEMPLATE)) if (t.steps[sid]) t.steps[sid].poss = poss;
 
 // Sambungkan paket momen striker (src/data/moments_striker.ts) ke daftar utama.
 Object.assign(SHARED, STRIKER_STEPS);

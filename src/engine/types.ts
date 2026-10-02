@@ -56,6 +56,15 @@ export interface World {
   schedule: Fixture[][]; // index 0 = pekan 1
   rivalId: string | null;
   nextId: number;
+  results: FixtureResult[];
+}
+
+export interface FixtureResult {
+  week: number;
+  home: string;
+  away: string;
+  hg: number;
+  ag: number;
 }
 
 export interface SeasonStats {
@@ -140,7 +149,7 @@ export type Prompt =
   | { kind: 'training' }
   | { kind: 'rehab' }
   | { kind: 'event'; title: string; text: string; choices: string[] }
-  | { kind: 'moment'; title: string; text: string; minute: number; choices: MomentChoice[] }
+  | { kind: 'moment'; title: string; text: string; minute: number; choices: MomentChoice[]; poss: 'has' | 'incoming' | 'off' }
   | { kind: 'info'; title: string; lines: string[]; button: string }
   | { kind: 'matchday'; title: string; text: string; button: string; injured: boolean; home: boolean; oppName: string; oppShort: string }
   | { kind: 'offers'; title: string; text: string; offers: Offer[]; canStay: boolean; stayLabel: string }
@@ -183,8 +192,8 @@ export interface MatchState {
   oppAtk: string[];
   oppDef: string[];
   oppGK: string;
-  lineupUs: { name: string; pos: Position }[];
-  lineupThem: { name: string; pos: Position }[];
+  lineupUs: { name: string; pos: Position; overall: number }[];
+  lineupThem: { name: string; pos: Position; overall: number }[];
   goals: number;
   assists: number;
   shots: number;
@@ -192,6 +201,8 @@ export interface MatchState {
   rating: number;
   moment: MomentState | null;
   done: boolean;
+  usScorers: string[];
+  themScorers: string[];
 }
 
 export type Stage =

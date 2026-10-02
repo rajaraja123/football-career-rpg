@@ -689,3 +689,40 @@ export const STRIKER_ENTRIES: MTemplate[] = [
   E('indirect_free_kick', 'Bola mati tidak langsung', 0.7),
   E('second_ball_setpiece', 'Bola kedua set piece', 0.7),
 ];
+
+// ---------- indikator penguasaan bola per langkah (has = bola di kakimu, incoming = bola menuju kamu, off = tanpa bola) ----------
+type Poss = 'has' | 'incoming' | 'off';
+const POSS: Record<string, Poss> = {
+  // 1. Menerima bola
+  receive_box: 'has', receive_edge_box: 'has', back_to_goal: 'has', receive_between: 'has', under_pressure: 'has',
+  bad_control: 'incoming', aerial_control: 'incoming', deflection_receive: 'incoming', pass_into_feet: 'incoming', receive_cutback: 'incoming',
+  // 2. Pergerakan tanpa bola (semua off)
+  run_behind: 'off', offside_trap: 'off', diagonal_run: 'off', near_post_run: 'off', far_post_run: 'off',
+  blindside_run: 'off', between_defenders: 'off', pull_defender: 'off', dummy_run: 'off', check_run: 'off',
+  channel_run: 'off', curved_run: 'off', late_box_entry: 'off', second_post_run: 'off', drag_centerback: 'off',
+  space_creation: 'off', off_ball_duel: 'off',
+  // 3. Duel striker vs bek
+  shoulder_duel: 'incoming', centerback_duel: 'has', fullback_duel: 'has', aerial_duel_box: 'incoming', front_post_duel: 'off',
+  shirt_pull: 'has', late_tackle: 'has', tight_marking: 'has', two_defenders: 'incoming', defender_block: 'has', last_man_duel: 'has',
+  // 4. Di dalam kotak penalti
+  inside_box: 'has', close_range: 'has', cutback_finish: 'incoming', near_post_finish: 'incoming', far_post_finish: 'incoming',
+  six_yard_box: 'incoming', scramble_box: 'incoming', blocked_shot: 'incoming', keeper_save_rebound: 'incoming', deflected_shot: 'incoming',
+  backheel_chance: 'has', first_time_cross: 'incoming', low_cross: 'incoming', high_cross: 'incoming',
+  // 5. Finishing khusus
+  first_time_finish: 'incoming', volley_chance: 'incoming', half_volley: 'incoming', chip_keeper: 'has', keeper_close: 'has',
+  keeper_one_on_one: 'has', keeper_wrong_position: 'has', empty_net: 'has', weak_foot_finish: 'has', acrobatic_finish: 'incoming',
+  awkward_finish: 'incoming', header_finish: 'incoming', diving_header: 'incoming', toe_poke: 'has',
+  // 6. Situasi kiper
+  keeper_narrow: 'has', keeper_stays: 'has', keeper_fakes: 'has', keeper_deflection: 'incoming', keeper_collision: 'incoming',
+  keeper_loose_ball: 'incoming', keeper_angle: 'has', keeper_hand_pressure: 'has',
+  // 7. Kombinasi dengan rekan
+  layoff: 'has', assist_from_striker: 'has', wall_pass: 'has', striker_drop: 'incoming', striker_spin: 'off',
+  overlap_support: 'has', two_striker_combo: 'has', assist_vs_shot: 'has', through_for_mate: 'has',
+  // 8. Serangan balik
+  counter_two_vs_one: 'has', counter_three_vs_two: 'has', counter_run: 'off', counter_hold: 'has',
+  counter_early_shot: 'has', counter_cutback: 'has', counter_lone_striker: 'has', counter_keeper: 'has',
+  // 9. Bola mati
+  corner_near: 'incoming', corner_far: 'incoming', corner_rebound: 'incoming', free_kick_rebound: 'incoming',
+  indirect_free_kick: 'off', second_ball_setpiece: 'incoming',
+};
+for (const [id, poss] of Object.entries(POSS)) if (STRIKER_STEPS[id]) STRIKER_STEPS[id].poss = poss;

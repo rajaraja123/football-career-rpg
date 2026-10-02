@@ -25,7 +25,11 @@ function salaryFor(g: GameState, clubId: string, mode: OfferMode, role: Role): n
 export function makeOffers(g: GameState, mode: OfferMode): Offer[] {
   const rng = new RNG(g);
   const h = g.hero;
-  const eff = effRating(h);
+  // Performa musim terakhir ikut menentukan daya tarikmu di pasar transfer, bukan cuma atribut.
+  // Klub melihat hasil nyata di lapangan: rating rendah musim lalu = minat klub turun, meski atributmu bagus di atas kertas.
+  const lastSeason = h.seasonsLog[h.seasonsLog.length - 1];
+  const perfAdj = lastSeason && lastSeason.apps >= 8 ? clamp((lastSeason.avgRating - 6.7) * 2.5, -8, 6) : 0;
+  const eff = effRating(h) + perfAdj;
   const own = clubOf(g.world, h.clubId);
   const offers: Offer[] = [];
   const isYouthDeal = mode === 'academy' || mode === 'promo';
@@ -83,8 +87,10 @@ export function makeOffers(g: GameState, mode: OfferMode): Offer[] {
     picked = offers.slice(0, 4);
   }
 
-  // jaring pengaman: kontrak pertama / bebas transfer harus selalu ada pilihan
-  if (picked.length === 0 && (mode === 'academy' || mode === 'free')) {
+  // jaring pengaman: kontrak profesional pertama harus selalu ada pilihan (titik masuk wajib ke karier senior).
+  // Catatan: mode 'free' SENGAJA tidak dapat jaring ini — bebas transfer musim yang buruk
+  // memang bisa berakhir tanpa tawaran sama sekali, lihat penanganannya di game.ts.
+  if (picked.length === 0 && mode === 'academy') {
     const weakest = [...g.world.clubs].sort((a, b) => a.reputation - b.reputation)[0];
     picked = [{ clubId: weakest.id, role: 'prospect', salary: salaryFor(g, weakest.id, mode, 'prospect'), years: 2, fee: 0 }];
   }

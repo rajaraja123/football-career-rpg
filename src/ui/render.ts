@@ -101,6 +101,7 @@ let lastEntry: LogEntry | null = null;
 
 /** Bangun kerangka layar game (hanya saat pertama masuk). */
 function buildGame(g: GameState) {
+  updateRoster(g);
   root.innerHTML = header(true) + gameView(g) + nav();
   const feedEl = root.querySelector<HTMLElement>('.feed');
   if (feedEl) jumpToBottom(feedEl);
@@ -138,6 +139,7 @@ function streamEntries(feedEl: HTMLElement, entries: LogEntry[], onDone: () => v
 }
 
 function patchGame(g: GameState) {
+  updateRoster(g);
   const swap = (sel: string, html: string) => {
     const el = root.querySelector(sel);
     if (el) el.outerHTML = html;
@@ -166,6 +168,14 @@ function patchGame(g: GameState) {
     swap('.dock', dock(g));
     renderedLog = g.log.length;
     lastEntry = g.log[g.log.length - 1] ?? null;
+    // dock baru bisa jadi lebih tinggi dari yang lama (mis. banyak pilihan) dan menyusutkan
+    // ruang .feed lewat flexbox; scrollTop lama jadi tidak lagi menunjuk ke dasar yang benar.
+    // Tunggu satu frame supaya browser selesai menghitung layout baru, baru anchor ulang ke bawah.
+    requestAnimationFrame(() => {
+      feedEl.style.scrollBehavior = 'auto';
+      feedEl.scrollTop = feedEl.scrollHeight;
+      feedEl.style.scrollBehavior = '';
+    });
   };
 
   const idx = lastEntry ? g.log.lastIndexOf(lastEntry) : -1;
@@ -251,8 +261,34 @@ function gameView(g: GameState): string {
   </div>`;
 }
 
+let usNames = new Set<string>();
+let themNames = new Set<string>();
+
+/** Perbarui daftar nama tim sendiri/lawan dari pertandingan yang sedang/baru saja berjalan.
+ * Sengaja TIDAK dikosongkan saat g.match null, supaya entri lama tetap terwarnai sampai laga berikutnya mulai. */
+function updateRoster(g: GameState) {
+  const m = g.match;
+  if (!m) return;
+  usNames = new Set([...m.lineupUs.map((p) => p.name), ...m.mates]);
+  themNames = new Set([...m.lineupThem.map((p) => p.name), ...m.oppAtk, ...m.oppDef, m.oppGK]);
+}
+
+/** Bungkus nama pemain yang dikenal dengan span berwarna (teman = biru, lawan = merah). Input HARUS sudah di-esc(). */
+function highlightNames(escapedText: string): string {
+  const names = [...usNames, ...themNames];
+  if (!names.length) return escapedText;
+  const escNames = names.map((n) => esc(n)).sort((a, b) => b.length - a.length);
+  const re = new RegExp(escNames.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'g');
+  return escapedText.replace(re, (match) => {
+    const original = names.find((n) => esc(n) === match);
+    const cls = original && usNames.has(original) ? 'nm-us' : 'nm-opp';
+    return `<span class="${cls}">${match}</span>`;
+  });
+}
+
 function entryHtml(e: LogEntry, fresh: boolean): string {
-  return `<div class="entry ${e.k}${fresh ? ' fresh' : ''}"><span class="tag">${e.k === 'week' ? '' : esc(e.tag ?? '')}</span><span>${esc(e.text)}${e.k === 'week' && e.tag ? `<span class="tag">${esc(e.tag)}</span>` : ''}</span></div>`;
+  const text = highlightNames(esc(e.text));
+  return `<div class="entry ${e.k}${fresh ? ' fresh' : ''}"><span class="tag">${e.k === 'week' ? '' : esc(e.tag ?? '')}</span><span>${text}${e.k === 'week' && e.tag ? `<span class="tag">${esc(e.tag)}</span>` : ''}</span></div>`;
 }
 
 function feedItems(g: GameState, freshFrom: number): string {
@@ -303,12 +339,14 @@ function dock(g: GameState): string {
     case 'event':
       return `<div class="dock"><h4>${esc(p.title)}</h4><p>${esc(p.text)}</p>
         <div class="choices stack">${p.choices.map((c, i) => `<button class="btn" data-a="choose" data-i="${i}">${esc(c)}</button>`).join('')}</div></div>`;
-    case 'moment':
-      return `<div class="dock"><div class="moment"><div class="hd"><span class="min">${p.minute}'</span><h4>${esc(p.title)}</h4></div>
-        <p>${esc(p.text)}</p>
-        <div class="choices">${p.choices.map((c, i) => `<button class="btn" data-a="choose" data-i="${i}">${riskChip(c)}${esc(c.label)}</button>`).join('')}</div></div></div>`;
+    case 'moment': {
+      const possBadge = { has: '⚽ Menguasai bola', incoming: '➤ Bola menuju kamu', off: '○ Tanpa bola' }[p.poss];
+      return `<div class="dock"><div class="moment"><div class="hd"><span class="min">${p.minute}'</span><h4>${esc(p.title)}</h4><span class="poss poss-${p.poss}">${possBadge}</span></div>
+        <p>${highlightNames(esc(p.text))}</p>
+        <div class="choices">${p.choices.map((c, i) => `<button class="btn" data-a="choose" data-i="${i}">${riskChip(c)}${highlightNames(esc(c.label))}</button>`).join('')}</div></div></div>`;
+    }
     case 'info':
-      return `<div class="dock"><h4>${esc(p.title)}</h4><ul class="lines">${p.lines.map((l) => `<li>${esc(l)}</li>`).join('')}</ul>
+      return `<div class="dock"><h4>${esc(p.title)}</h4><ul class="lines">${p.lines.map((l) => `<li>${highlightNames(esc(l))}</li>`).join('')}</ul>
         <div class="choices"><button class="btn primary" data-a="choose" data-i="0">${esc(p.button)}</button></div></div>`;
     case 'matchday':
       return `<div class="dock"><div class="matchday">
@@ -382,16 +420,24 @@ function sidePanel(g: GameState): string {
 function fixturePanel(g: GameState): string {
   const fx = fixturesFor(g, g.hero.clubId);
   const label = g.hero.status === 'academy' ? 'Liga U-18' : g.world.leagueName;
+  const resultOf = (week: number) => g.world.results.find((r) => r.week === week && (r.home === g.hero.clubId || r.away === g.hero.clubId));
   const rows = fx
     .map((f) => {
       const clsAttr = f.week === g.week ? ' class="me"' : '';
       const lbl = f.home ? `vs ${f.opp.short}` : `@ ${f.opp.short}`;
-      return `<tr${clsAttr} ${f.week < g.week ? 'style="opacity:.55"' : ''}><td>${f.week}</td><td>${esc(lbl)}</td></tr>`;
+      const r = f.week < g.week ? resultOf(f.week) : undefined;
+      let scoreCell = '-';
+      if (r) {
+        const [us, them] = f.home ? [r.hg, r.ag] : [r.ag, r.hg];
+        const res = us > them ? 'W' : us < them ? 'L' : 'D';
+        scoreCell = `<span class="res res-${res}">${us}-${them}</span>`;
+      }
+      return `<tr${clsAttr} ${f.week < g.week ? 'style="opacity:.75"' : ''}><td>${f.week}</td><td>${esc(lbl)}</td><td>${scoreCell}</td></tr>`;
     })
     .join('');
   return `<div class="sect" style="margin:0;padding:0;border:0"><h3>Jadwal ${label} · ${seasonLabel(g)}</h3>
-    <table><tr><th>Pekan</th><th>Lawan</th></tr>${rows}</table>
-    <div class="note">Baris kuning = pekan sekarang. Baris pudar = sudah dimainkan.</div></div>`;
+    <table><tr><th>Pekan</th><th>Lawan</th><th>Hasil</th></tr>${rows}</table>
+    <div class="note">Baris kuning = pekan sekarang. W/D/L = menang/seri/kalah dari sudut pandang klubmu.</div></div>`;
 }
 
 function squadPanel(g: GameState): string {

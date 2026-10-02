@@ -55,7 +55,7 @@ export function genPlayer(g: GameState, rng: RNG, club: Club, pos: Position, slo
 
 export function createWorld(g: GameState): World {
   const rng = new RNG(g);
-  const world: World = { leagueName: LEAGUE_NAME, clubs: [], players: [], standings: {}, schedule: [], rivalId: null, nextId: 1 };
+  const world: World = { leagueName: LEAGUE_NAME, clubs: [], players: [], standings: {}, schedule: [], rivalId: null, nextId: 1, results: [] };
   g.world = world;
   for (const c of CLUBS) {
     const club: Club = {
@@ -113,10 +113,22 @@ export function rosterOf(g: GameState, clubId: string): RosterPlayer[] {
 }
 
 /** Susunan 11 pemain terbaik klub berdasar formasi. Ini satu-satunya sumber nama yang dipakai cerita pertandingan dan tab Skuad. */
+/** Hash string -> 0..1, stabil (tidak memakai/mengubah RNG global) supaya susunan pemain
+ * konsisten kalau dipanggil berkali-kali di pekan yang sama, tapi berubah tiap pekan berganti. */
+function stableNoise(seed: string): number {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (Math.imul(h, 31) + seed.charCodeAt(i)) >>> 0;
+  return (h % 10000) / 10000;
+}
+
 export function startingXI(g: GameState, clubId: string, heroIn?: { name: string; overall: number }) {
   const youth = g.hero.status === 'academy';
   const roster = rosterOf(g, clubId);
-  const by = (pos: Position) => roster.filter((p) => p.pos === pos).sort((a, b) => b.overall - a.overall);
+  // rating "hari ini": overall asli + goyangan kecil yang stabil per pekan, supaya rotasi skuad
+  // terlihat dari waktu ke waktu (bukan selalu 11 nama yang sama persis tiap laga).
+  const NOISE = 7;
+  const ratingToday = (name: string, overall: number) => overall + (stableNoise(`${g.seasonNo}-${g.week}-${clubId}-${name}`) - 0.5) * NOISE;
+  const by = (pos: Position) => roster.filter((p) => p.pos === pos).sort((a, b) => ratingToday(b.name, b.overall) - ratingToday(a.name, a.overall));
   const club = clubOf(g.world, clubId);
   const nFw = youth ? 2 : club.formation; // U-18 selalu 4-4-2
   const nMf = youth ? 4 : club.formation === 2 ? 4 : 5;
@@ -166,7 +178,7 @@ function poisson(rng: RNG, lambda: number): number {
   return k - 1;
 }
 
-export function applyResult(w: World, home: string, away: string, hg: number, ag: number) {
+export function applyResult(w: World, week: number, home: string, away: string, hg: number, ag: number) {
   const h = w.standings[home];
   const a = w.standings[away];
   h.pld++; a.pld++;
@@ -174,6 +186,7 @@ export function applyResult(w: World, home: string, away: string, hg: number, ag
   if (hg > ag) { h.w++; a.l++; h.pts += 3; }
   else if (hg < ag) { a.w++; h.l++; a.pts += 3; }
   else { h.d++; a.d++; h.pts++; a.pts++; }
+  w.results.push({ week, home, away, hg, ag });
 }
 
 function creditGoals(g: GameState, rng: RNG, clubId: string, n: number) {
@@ -196,7 +209,7 @@ export function quickSim(g: GameState, rng: RNG, homeId: string, awayId: string,
     creditGoals(g, rng, homeId, hg);
     creditGoals(g, rng, awayId, ag);
   }
-  applyResult(g.world, homeId, awayId, hg, ag);
+  applyResult(g.world, g.week, homeId, awayId, hg, ag);
   return { hg, ag };
 }
 
@@ -209,6 +222,7 @@ export function sortedTable(w: World): { clubId: string; s: Standing }[] {
 export function resetSeason(g: GameState) {
   const rng = new RNG(g);
   const w = g.world;
+  w.results = [];
   for (const c of w.clubs) w.standings[c.id] = emptyStanding();
   for (const p of w.players) p.goals = 0;
   w.schedule = makeSchedule(w.clubs.map((c) => c.id), rng);
